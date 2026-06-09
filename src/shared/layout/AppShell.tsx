@@ -60,7 +60,7 @@ function DesktopSidebar({ role, menuItems }: { role: UserRole; menuItems: MenuIt
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {groups.map(([group, items]) => (
           <div className="mb-5" key={group}>
-            <p className={getGroupLabelClassName(group)}>{group}</p>
+            <p className={groupLabelClassName}>{group}</p>
             <div className="mt-2 grid gap-1">
               {items.map((item) => (
                 <NavigationLink item={item} key={item.href} />
@@ -75,7 +75,7 @@ function DesktopSidebar({ role, menuItems }: { role: UserRole; menuItems: MenuIt
 
 function MobileBottomNav({ menuItems }: { menuItems: MenuItem[] }) {
   const pathname = usePathname();
-  const primaryItems = menuItems.filter((item) => item.href !== "/").slice(0, 5);
+  const primaryItems = menuItems.slice(0, 5);
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
@@ -126,7 +126,7 @@ function NavigationLink({ item }: { item: MenuItem }) {
 }
 
 function groupMenuItems(menuItems: MenuItem[]): Array<[MenuItem["group"], MenuItem[]]> {
-  const groups: MenuItem["group"][] = ["공통", "화주", "대리점", "배송기사"];
+  const groups: MenuItem["group"][] = ["화주", "대리점", "배송기사"];
 
   return groups
     .map(
@@ -137,14 +137,6 @@ function groupMenuItems(menuItems: MenuItem[]): Array<[MenuItem["group"], MenuIt
         ],
     )
     .filter(([, items]) => items.length > 0);
-}
-
-function getGroupLabelClassName(group: MenuItem["group"]): string {
-  if (group === "공통") {
-    return "mx-1 rounded-md bg-[#071f46] px-3 py-2 text-sm font-bold text-white";
-  }
-
-  return "mx-1 rounded-md bg-[#071f46] px-3 py-2 text-sm font-bold text-white";
 }
 
 function isActive(pathname: string, href: string): boolean {
@@ -165,3 +157,6 @@ const roleLabelMap: Record<UserRole, string> = {
   AGENCY: "대리점",
   DRIVER: "배송기사",
 };
+
+const groupLabelClassName =
+  "mx-1 rounded-md bg-[#071f46] px-3 py-2 text-sm font-bold text-white";

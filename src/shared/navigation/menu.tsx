@@ -6,22 +6,14 @@ export type MenuItem = {
   href: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   roles: UserRole[];
-  group: "공통" | "화주" | "대리점" | "배송기사";
+  group: "화주" | "대리점" | "배송기사";
 };
 
-const allRoles: UserRole[] = ["ADMIN", "VENDOR", "AGENCY", "DRIVER"];
 const vendorRoles: UserRole[] = ["ADMIN", "VENDOR"];
 const agencyRoles: UserRole[] = ["ADMIN", "AGENCY"];
 const driverRoles: UserRole[] = ["ADMIN", "DRIVER"];
 
 export const menuItems: MenuItem[] = [
-  {
-    label: "홈",
-    href: "/",
-    icon: HomeIcon,
-    roles: allRoles,
-    group: "공통",
-  },
   {
     label: "화주 홈",
     href: "/vendor",
@@ -138,16 +130,6 @@ function IconBase(props: SVGProps<SVGSVGElement>) {
       viewBox="0 0 24 24"
       {...props}
     />
-  );
-}
-
-function HomeIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <IconBase {...props}>
-      <path d="m3 11 9-8 9 8" />
-      <path d="M5 10v10h14V10" />
-      <path d="M9 20v-6h6v6" />
-    </IconBase>
   );
 }
 
