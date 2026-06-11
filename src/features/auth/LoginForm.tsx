@@ -25,10 +25,21 @@ export function LoginForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage("");
+
+    const validationMessage = validateLoginForm(form);
+
+    if (validationMessage) {
+      setErrorMessage(validationMessage);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const user = await signIn(form);
+      const user = await signIn({
+        loginId: form.loginId.trim(),
+        password: form.password,
+      });
       router.push(getRoleHomePath(user.role));
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -97,6 +108,18 @@ export function LoginForm() {
       </p>
     </form>
   );
+}
+
+function validateLoginForm(form: LoginFormState): string {
+  if (!form.loginId.trim()) {
+    return "loginId는 필수입니다.";
+  }
+
+  if (!form.password.trim()) {
+    return "password는 필수입니다.";
+  }
+
+  return "";
 }
 
 function getErrorMessage(error: unknown): string {
