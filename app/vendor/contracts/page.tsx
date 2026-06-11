@@ -13,7 +13,7 @@ export default function VendorContractsPage() {
         fields={[
           { label: "상품", keys: ["productName", "name"] },
           { label: "대리점", keys: ["agencyName", "agencyId"] },
-          { label: "단가", keys: ["unitPrice"] },
+          { label: "단가", keys: ["unitPrice"], format: "currency" },
           { label: "상태", keys: ["status"] },
         ]}
       />

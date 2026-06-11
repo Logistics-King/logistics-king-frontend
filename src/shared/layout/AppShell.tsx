@@ -140,7 +140,13 @@ function groupMenuItems(menuItems: MenuItem[]): Array<[MenuItem["group"], MenuIt
 }
 
 function isActive(pathname: string, href: string): boolean {
-  if (href === "/vendor" || href === "/agency" || href === "/driver" || href === "/admin") {
+  if (
+    href === "/vendor" ||
+    href === "/agency" ||
+    href === "/driver" ||
+    href === "/admin" ||
+    href === "/vendor/products"
+  ) {
     return pathname === href;
   }
 
