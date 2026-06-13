@@ -71,7 +71,7 @@ export const menuItems: MenuItem[] = [
     group: "대리점",
   },
   {
-    label: "제안 가능 요청",
+    label: "일감 조회",
     href: "/agency/open-requests",
     icon: SearchIcon,
     roles: agencyRoles,
