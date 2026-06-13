@@ -9,6 +9,7 @@ export type SignUpRequest = {
   loginId: string;
   email: string;
   password: string;
+  passwordConfirm: string;
   name: string;
 };
 

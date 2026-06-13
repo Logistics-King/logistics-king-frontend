@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { ApiError } from "@/src/shared/api/client";
+import type { UserRole } from "@/src/shared/api/types";
+import { getAgencyProfile, getVendorProfile } from "@/src/features/profile/api";
 import { signIn } from "./api";
 import { getRoleHomePath } from "./roles";
 
@@ -25,11 +28,24 @@ export function LoginForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage("");
+
+    const validationMessage = validateLoginForm(form);
+
+    if (validationMessage) {
+      setErrorMessage(validationMessage);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const user = await signIn(form);
-      router.push(getRoleHomePath(user.role));
+      const user = await signIn({
+        loginId: form.loginId.trim(),
+        password: form.password,
+      });
+      const nextPath = await resolvePostLoginPath(user.role);
+
+      router.push(nextPath);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -97,6 +113,59 @@ export function LoginForm() {
       </p>
     </form>
   );
+}
+
+async function resolvePostLoginPath(role: UserRole): Promise<string> {
+  if (role === "VENDOR") {
+    return resolveProfilePath(getVendorProfile, "/vendor/profile", "/vendor");
+  }
+
+  if (role === "AGENCY") {
+    return resolveProfilePath(getAgencyProfile, "/agency/profile", "/agency");
+  }
+
+  if (role === "DRIVER") {
+    return "/driver/profile";
+  }
+
+  return getRoleHomePath(role);
+}
+
+async function resolveProfilePath(
+  loadProfile: () => Promise<unknown>,
+  missingProfilePath: string,
+  homePath: string,
+): Promise<string> {
+  try {
+    await loadProfile();
+
+    return homePath;
+  } catch (error) {
+    if (isProfileMissingError(error)) {
+      return missingProfilePath;
+    }
+
+    throw error;
+  }
+}
+
+function isProfileMissingError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.code === "VENDOR_NOT_FOUND" || error.code === "AGENCY_NOT_FOUND")
+  );
+}
+
+function validateLoginForm(form: LoginFormState): string {
+  if (!form.loginId.trim()) {
+    return "loginId는 필수입니다.";
+  }
+
+  if (!form.password.trim()) {
+    return "password는 필수입니다.";
+  }
+
+  return "";
 }
 
 function getErrorMessage(error: unknown): string {

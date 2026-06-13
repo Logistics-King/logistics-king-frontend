@@ -7,7 +7,18 @@ export const API_BASE_URL =
 
 type ApiFetchConfig = {
   retryOnUnauthorized?: boolean;
+  redirectOnUnauthorized?: boolean;
 };
+
+const AUTH_ENTRY_PATHS = new Set([
+  "/api/v1/auth/sign-in",
+  "/api/v1/auth/sign-up/vendor",
+  "/api/v1/auth/sign-up/agency",
+  "/api/v1/auth/sign-up/driver",
+  "/api/v1/auth/refresh",
+]);
+
+let sessionRedirectStarted = false;
 
 export class ApiError extends Error {
   status: number;
@@ -26,17 +37,22 @@ export async function apiFetch<T>(
   options: RequestInit = {},
   config: ApiFetchConfig = {},
 ): Promise<T> {
-  const { retryOnUnauthorized = true } = config;
+  const { retryOnUnauthorized = true, redirectOnUnauthorized = true } = config;
   const response = await request(path, options);
   const body = await parseJson<ApiEnvelope<T>>(response);
 
-  if (response.status === 401 && retryOnUnauthorized && path !== "/api/v1/auth/refresh") {
+  if (response.status === 401 && shouldRefreshAuth(path, retryOnUnauthorized)) {
     try {
       await apiFetch("/api/v1/auth/refresh", { method: "POST" }, { retryOnUnauthorized: false });
       return apiFetch<T>(path, options, { retryOnUnauthorized: false });
     } catch {
+      redirectToHomeOnUnauthorized(path, redirectOnUnauthorized);
       throw toApiError(response, body);
     }
+  }
+
+  if (response.status === 401) {
+    redirectToHomeOnUnauthorized(path, redirectOnUnauthorized);
   }
 
   if (!response.ok || body?.payload?.code !== "SUCCESS") {
@@ -49,7 +65,7 @@ export async function apiFetch<T>(
 async function request(path: string, options: RequestInit): Promise<Response> {
   return fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    credentials: "include",
+    credentials: options.credentials ?? "include",
     headers: buildHeaders(options),
   });
 }
@@ -62,6 +78,26 @@ function buildHeaders(options: RequestInit): HeadersInit {
   }
 
   return headers;
+}
+
+function shouldRefreshAuth(path: string, retryOnUnauthorized: boolean): boolean {
+  return retryOnUnauthorized && !AUTH_ENTRY_PATHS.has(path);
+}
+
+function redirectToHomeOnUnauthorized(
+  path: string,
+  redirectOnUnauthorized: boolean,
+) {
+  if (!redirectOnUnauthorized || AUTH_ENTRY_PATHS.has(path) || sessionRedirectStarted) {
+    return;
+  }
+
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  sessionRedirectStarted = true;
+  window.location.replace("/");
 }
 
 async function parseJson<T>(response: Response): Promise<T | null> {

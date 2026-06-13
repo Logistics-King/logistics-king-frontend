@@ -1,15 +1,14 @@
-export default function VendorPage() {
-  return <RoleHome title="화주 홈" description="프로필, 배송 품목, 계약 요청을 관리합니다." />;
-}
+import { AppShell } from "@/src/shared/layout/AppShell";
+import { VendorDashboard } from "@/src/features/vendor/VendorDashboard";
 
-function RoleHome({ title, description }: { title: string; description: string }) {
+export default function VendorPage() {
   return (
-    <main className="min-h-screen bg-slate-100 px-5 py-10">
-      <section className="mx-auto max-w-5xl rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-semibold text-emerald-700">택배왕</p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-950">{title}</h1>
-        <p className="mt-3 text-slate-600">{description}</p>
-      </section>
-    </main>
+    <AppShell
+      role="VENDOR"
+      title="화주 홈"
+      description="최근 계약 요청과 계약 상태를 확인하고 필요한 메뉴로 이동합니다."
+    >
+      <VendorDashboard />
+    </AppShell>
   );
 }
