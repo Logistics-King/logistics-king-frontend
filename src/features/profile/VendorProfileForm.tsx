@@ -76,9 +76,22 @@ export function VendorProfileForm() {
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <TextField label="상호명" value={form.businessName} onChange={(value) => setForm({ ...form, businessName: value })} />
-        <TextField label="사업자등록번호" value={form.businessRegistrationNumber} onChange={(value) => setForm({ ...form, businessRegistrationNumber: value })} />
+        <TextField
+          label="사업자등록번호"
+          value={form.businessRegistrationNumber}
+          onChange={(value) =>
+            setForm({
+              ...form,
+              businessRegistrationNumber: formatBusinessRegistrationNumber(value),
+            })
+          }
+        />
         <TextField label="대표자명" value={form.representativeName} onChange={(value) => setForm({ ...form, representativeName: value })} />
-        <TextField label="연락처" value={form.phoneNumber} onChange={(value) => setForm({ ...form, phoneNumber: value })} />
+        <TextField
+          label="연락처"
+          value={form.phoneNumber}
+          onChange={(value) => setForm({ ...form, phoneNumber: formatPhoneNumber(value) })}
+        />
         <div className="grid gap-2">
           <span className="text-sm font-semibold text-slate-700">우편번호</span>
           <div className="grid gap-2 sm:grid-cols-[1fr_120px]">
@@ -159,8 +172,16 @@ function validateForm(form: VendorProfileFormState): string {
     return "대표자명은 필수입니다.";
   }
 
+  if (!isValidBusinessRegistrationNumber(form.businessRegistrationNumber)) {
+    return "사업자등록번호는 10자리로 입력해 주세요.";
+  }
+
   if (!form.phoneNumber.trim()) {
     return "연락처는 필수입니다.";
+  }
+
+  if (!isValidPhoneNumber(form.phoneNumber)) {
+    return "연락처는 10~11자리로 입력해 주세요.";
   }
 
   if (!form.address.trim()) {
@@ -178,6 +199,46 @@ function blankToNull(value: string): string | null {
   const trimmed = value.trim();
 
   return trimmed ? trimmed : null;
+}
+
+function formatBusinessRegistrationNumber(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 5) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+
+  return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+}
+
+function isValidBusinessRegistrationNumber(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+
+  return digits.length === 0 || digits.length === 10;
+}
+
+function formatPhoneNumber(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+
+function isValidPhoneNumber(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+
+  return digits.length === 10 || digits.length === 11;
 }
 
 function getErrorMessage(error: unknown): string {

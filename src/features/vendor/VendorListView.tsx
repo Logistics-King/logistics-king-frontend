@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ApiError } from "@/src/shared/api/client";
 import type { PageResponse } from "@/src/shared/api/types";
+import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
 import {
   getVendorContractRequests,
   getVendorContracts,
@@ -40,6 +42,7 @@ export function VendorListView({
     null,
   );
   const [errorMessage, setErrorMessage] = useState("");
+  const [needsVendorProfile, setNeedsVendorProfile] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -48,6 +51,7 @@ export function VendorListView({
     async function fetchPage() {
       setIsLoading(true);
       setErrorMessage("");
+      setNeedsVendorProfile(false);
 
       try {
         const response = await loadVendorPage(resource, { page, size: pageSize });
@@ -57,6 +61,7 @@ export function VendorListView({
         }
       } catch (error) {
         if (active) {
+          setNeedsVendorProfile(isVendorProfileMissing(error));
           setErrorMessage(getErrorMessage(error));
           setPageResponse(null);
         }
@@ -101,7 +106,9 @@ export function VendorListView({
         </div>
       </div>
 
-      {errorMessage ? (
+      {needsVendorProfile ? <ProfileRequiredNotice role="VENDOR" /> : null}
+
+      {errorMessage && !needsVendorProfile ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
           {errorMessage}
         </p>
@@ -234,6 +241,10 @@ function getErrorMessage(error: unknown): string {
   }
 
   return "목록을 불러오지 못했습니다.";
+}
+
+function isVendorProfileMissing(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "VENDOR_NOT_FOUND";
 }
 
 function formatNumber(value: number): string {

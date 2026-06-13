@@ -40,7 +40,7 @@ export type BoxSize =
   | "SIZE_120"
   | "SIZE_140"
   | "SIZE_160"
-  | "ETC";
+  | "CUSTOM";
 
 export type Carrier =
   | "CJ"

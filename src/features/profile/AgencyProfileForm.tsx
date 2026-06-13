@@ -190,9 +190,22 @@ export function AgencyProfileForm() {
           onChange={(value) => setForm({ ...form, carrier: value as Carrier })}
         />
         <TextField label="대리점명" value={form.agencyName} onChange={(value) => setForm({ ...form, agencyName: value })} />
-        <TextField label="사업자등록번호" value={form.businessRegistrationNumber} onChange={(value) => setForm({ ...form, businessRegistrationNumber: value })} />
+        <TextField
+          label="사업자등록번호"
+          value={form.businessRegistrationNumber}
+          onChange={(value) =>
+            setForm({
+              ...form,
+              businessRegistrationNumber: formatBusinessRegistrationNumber(value),
+            })
+          }
+        />
         <TextField label="대표자명" value={form.representativeName} onChange={(value) => setForm({ ...form, representativeName: value })} />
-        <TextField label="연락처" value={form.phoneNumber} onChange={(value) => setForm({ ...form, phoneNumber: value })} />
+        <TextField
+          label="연락처"
+          value={form.phoneNumber}
+          onChange={(value) => setForm({ ...form, phoneNumber: formatPhoneNumber(value) })}
+        />
         <div className="grid gap-2">
           <span className="text-sm font-semibold text-slate-700">우편번호</span>
           <div className="grid gap-2 sm:grid-cols-[1fr_120px]">
@@ -356,8 +369,16 @@ function validateForm(form: AgencyProfileFormState): string {
     return "대표자명은 필수입니다.";
   }
 
+  if (!isValidBusinessRegistrationNumber(form.businessRegistrationNumber)) {
+    return "사업자등록번호는 10자리로 입력해 주세요.";
+  }
+
   if (!form.phoneNumber.trim()) {
     return "연락처는 필수입니다.";
+  }
+
+  if (!isValidPhoneNumber(form.phoneNumber)) {
+    return "연락처는 10~11자리로 입력해 주세요.";
   }
 
   if (!form.address.trim()) {
@@ -405,9 +426,11 @@ function toFormState(profile: AgencyProfile): AgencyProfileFormState {
   return {
     carrier: profile.carrier,
     agencyName: profile.agencyName,
-    businessRegistrationNumber: profile.businessRegistrationNumber ?? "",
+    businessRegistrationNumber: formatBusinessRegistrationNumber(
+      profile.businessRegistrationNumber ?? "",
+    ),
     representativeName: profile.representativeName,
-    phoneNumber: profile.phoneNumber,
+    phoneNumber: formatPhoneNumber(profile.phoneNumber),
     postalCode: profile.postalCode ?? "",
     address: profile.address,
     addressDetail: profile.addressDetail ?? "",
@@ -434,6 +457,46 @@ function blankToNull(value: string): string | null {
   const trimmed = value.trim();
 
   return trimmed ? trimmed : null;
+}
+
+function formatBusinessRegistrationNumber(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 5) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+
+  return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+}
+
+function isValidBusinessRegistrationNumber(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+
+  return digits.length === 0 || digits.length === 10;
+}
+
+function formatPhoneNumber(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+
+function isValidPhoneNumber(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+
+  return digits.length === 10 || digits.length === 11;
 }
 
 function numberToNullable(value: string): number | null {

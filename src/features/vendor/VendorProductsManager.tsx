@@ -7,6 +7,7 @@ import { ApiError } from "@/src/shared/api/client";
 import type { BoxSize, ColdChainType, ProductCategory } from "@/src/shared/api/types";
 import type { PageResponse } from "@/src/shared/api/types";
 import { AddressSearchButton } from "@/src/shared/address/AddressSearchButton";
+import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
 import {
   createVendorProduct,
   getVendorProducts,
@@ -90,7 +91,7 @@ const boxSizeOptions: Array<{ value: BoxSize; label: string }> = [
   { value: "SIZE_120", label: "120사이즈" },
   { value: "SIZE_140", label: "140사이즈" },
   { value: "SIZE_160", label: "160사이즈" },
-  { value: "ETC", label: "기타" },
+  { value: "CUSTOM", label: "기타" },
 ];
 
 export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
@@ -233,7 +234,7 @@ export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
         />
       ) : null}
 
-      {needsVendorProfile ? <VendorProfileRequiredNotice /> : null}
+      {needsVendorProfile ? <ProfileRequiredNotice role="VENDOR" /> : null}
 
       {mode === "list" ? (
         <ProductsList
@@ -248,23 +249,6 @@ export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
           setPage={setPage}
         />
       ) : null}
-    </section>
-  );
-}
-
-function VendorProfileRequiredNotice() {
-  return (
-    <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
-      <p className="text-sm font-bold text-amber-900">화주 정보 등록이 먼저 필요합니다.</p>
-      <p className="mt-2 text-sm leading-6 text-amber-800">
-        배송 품목은 화주 사업 정보가 있어야 등록할 수 있습니다.
-      </p>
-      <Link
-        className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[#071f46] px-4 text-sm font-bold text-white transition hover:bg-[#0a2d63]"
-        href="/vendor/profile"
-      >
-        화주 정보 등록
-      </Link>
     </section>
   );
 }
@@ -958,5 +942,5 @@ const boxSizeLabelMap: Record<BoxSize, string> = {
   SIZE_120: "120사이즈",
   SIZE_140: "140사이즈",
   SIZE_160: "160사이즈",
-  ETC: "기타",
+  CUSTOM: "기타",
 };
