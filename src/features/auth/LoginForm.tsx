@@ -105,12 +105,23 @@ export function LoginForm() {
         {isSubmitting ? "로그인 중" : "로그인"}
       </button>
 
-      <p className="text-center text-sm text-slate-600">
-        계정이 없으면{" "}
-        <Link className="font-semibold text-emerald-700 hover:text-emerald-800" href="/signup">
-          회원가입
-        </Link>
-      </p>
+      <div className="grid gap-2 text-center text-sm text-slate-600">
+        <p>
+          아이디나 비밀번호를 잊었으면{" "}
+          <Link
+            className="font-semibold text-emerald-700 hover:text-emerald-800"
+            href="/account-recovery"
+          >
+            계정 찾기
+          </Link>
+        </p>
+        <p>
+          계정이 없으면{" "}
+          <Link className="font-semibold text-emerald-700 hover:text-emerald-800" href="/signup">
+            회원가입
+          </Link>
+        </p>
+      </div>
     </form>
   );
 }

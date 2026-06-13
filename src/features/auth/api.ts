@@ -2,6 +2,11 @@ import { apiFetch } from "@/src/shared/api/client";
 import type {
   AuthUser,
   LogoutResponse,
+  PasswordResetConfirmRequest,
+  PasswordResetConfirmResponse,
+  PasswordResetRequest,
+  RecoverLoginIdRequest,
+  RecoveryAcceptedResponse,
   SignInRequest,
   SignUpRequest,
 } from "./types";
@@ -47,5 +52,35 @@ export function refreshAuth(): Promise<AuthUser> {
 export function logout(): Promise<LogoutResponse> {
   return apiFetch("/api/v1/auth/logout", {
     method: "POST",
+  });
+}
+
+export function recoverLoginId(
+  request: RecoverLoginIdRequest,
+): Promise<RecoveryAcceptedResponse> {
+  return apiFetch("/api/v1/auth/recovery/login-id", {
+    method: "POST",
+    credentials: "omit",
+    body: JSON.stringify(request),
+  });
+}
+
+export function requestPasswordReset(
+  request: PasswordResetRequest,
+): Promise<RecoveryAcceptedResponse> {
+  return apiFetch("/api/v1/auth/password-reset/request", {
+    method: "POST",
+    credentials: "omit",
+    body: JSON.stringify(request),
+  });
+}
+
+export function confirmPasswordReset(
+  request: PasswordResetConfirmRequest,
+): Promise<PasswordResetConfirmResponse> {
+  return apiFetch("/api/v1/auth/password-reset/confirm", {
+    method: "POST",
+    credentials: "omit",
+    body: JSON.stringify(request),
   });
 }

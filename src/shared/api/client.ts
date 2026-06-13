@@ -16,6 +16,9 @@ const AUTH_ENTRY_PATHS = new Set([
   "/api/v1/auth/sign-up/agency",
   "/api/v1/auth/sign-up/driver",
   "/api/v1/auth/refresh",
+  "/api/v1/auth/recovery/login-id",
+  "/api/v1/auth/password-reset/request",
+  "/api/v1/auth/password-reset/confirm",
 ]);
 
 let sessionRedirectStarted = false;
