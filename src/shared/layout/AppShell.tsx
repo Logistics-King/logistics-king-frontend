@@ -3,10 +3,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { logout } from "@/src/features/auth/api";
 import type { UserRole } from "@/src/shared/api/types";
 import { getMenuItems, type MenuItem } from "@/src/shared/navigation/menu";
+import {
+  getNotifications,
+  getUnreadNotificationCount,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+  type NotificationItem,
+} from "@/src/shared/notifications/api";
 
 export function AppShell({
   role,
@@ -80,7 +87,34 @@ function DesktopSidebar({ role, menuItems }: { role: UserRole; menuItems: MenuIt
 function TopNavigation({ role }: { role: UserRole }) {
   const router = useRouter();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [infoHref, roleHomeHref] = [roleInfoPathMap[role], roleHomePathMap[role]];
+
+  useEffect(() => {
+    let active = true;
+
+    async function fetchUnreadCount() {
+      try {
+        const response = await getUnreadNotificationCount();
+
+        if (active) {
+          setUnreadCount(response.count);
+        }
+      } catch {
+        if (active) {
+          setUnreadCount(0);
+        }
+      }
+    }
+
+    fetchUnreadCount();
+    const intervalId = window.setInterval(fetchUnreadCount, 60_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   async function handleLogout() {
     try {
@@ -125,10 +159,15 @@ function TopNavigation({ role }: { role: UserRole }) {
           >
             알림
             <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#071f46] px-1 text-xs font-bold text-white">
-              0
+              {formatBadgeCount(unreadCount)}
             </span>
           </button>
-          {notificationsOpen ? <NotificationPanel /> : null}
+          {notificationsOpen ? (
+            <NotificationPanel
+              onClose={() => setNotificationsOpen(false)}
+              onUnreadCountChange={setUnreadCount}
+            />
+          ) : null}
         </div>
         <button className={topNavButtonClassName} onClick={handleLogout} type="button">
           로그아웃
@@ -138,15 +177,153 @@ function TopNavigation({ role }: { role: UserRole }) {
   );
 }
 
-function NotificationPanel() {
+function NotificationPanel({
+  onClose,
+  onUnreadCountChange,
+}: {
+  onClose: () => void;
+  onUnreadCountChange: Dispatch<SetStateAction<number>>;
+}) {
+  const router = useRouter();
+  const [items, setItems] = useState<NotificationItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function fetchNotifications() {
+      setIsLoading(true);
+      setErrorMessage("");
+
+      try {
+        const response = await getNotifications({ page: 0, size: 20 });
+
+        if (active) {
+          setItems(response.items);
+        }
+      } catch {
+        if (active) {
+          setErrorMessage("알림을 불러오지 못했습니다.");
+        }
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchNotifications();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handleReadAll() {
+    setIsSubmitting(true);
+    setErrorMessage("");
+
+    try {
+      await markAllNotificationsAsRead();
+      setItems((currentItems) =>
+        currentItems.map((item) => ({
+          ...item,
+          readAt: item.readAt ?? new Date().toISOString(),
+        })),
+      );
+      onUnreadCountChange(0);
+    } catch {
+      setErrorMessage("알림을 읽음 처리하지 못했습니다.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleNotificationClick(item: NotificationItem) {
+    setErrorMessage("");
+
+    try {
+      if (item.readAt === null) {
+        const updatedItem = await markNotificationAsRead(item.notificationId);
+
+        setItems((currentItems) =>
+          currentItems.map((currentItem) =>
+            currentItem.notificationId === item.notificationId ? updatedItem : currentItem,
+          ),
+        );
+        onUnreadCountChange((currentCount) => Math.max(currentCount - 1, 0));
+      }
+
+      if (item.linkUrl) {
+        router.push(item.linkUrl);
+        onClose();
+      }
+    } catch {
+      setErrorMessage("알림을 읽음 처리하지 못했습니다.");
+    }
+  }
+
+  const unreadCount = items.filter((item) => item.readAt === null).length;
+
   return (
     <div className="absolute right-0 top-11 z-30 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.16)]">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
         <p className="text-sm font-bold text-slate-950">알림</p>
-        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">0개</span>
+        <button
+          className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500 transition hover:bg-[#071f46]/10 hover:text-[#071f46] disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={isSubmitting || unreadCount === 0}
+          onClick={handleReadAll}
+          type="button"
+        >
+          모두 읽음
+        </button>
       </div>
-      <div className="px-4 py-8 text-center">
-        <p className="text-sm font-bold text-slate-700">새 알림이 없습니다.</p>
+
+      {errorMessage ? (
+        <p className="border-b border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700">
+          {errorMessage}
+        </p>
+      ) : null}
+
+      <div className="max-h-96 overflow-y-auto">
+        {isLoading ? (
+          <div className="grid gap-2 px-4 py-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div className="h-16 rounded-md bg-slate-100" key={index} />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm font-bold text-slate-700">새 알림이 없습니다.</p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {items.map((item) => (
+              <li key={item.notificationId}>
+                <button
+                  className="grid w-full gap-1 px-4 py-3 text-left transition hover:bg-slate-50"
+                  onClick={() => handleNotificationClick(item)}
+                  type="button"
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="min-w-0 text-sm font-bold text-slate-950">{item.title}</span>
+                    {item.readAt === null ? (
+                      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#071f46]" />
+                    ) : null}
+                  </span>
+                  <span className="line-clamp-2 text-xs leading-5 text-slate-600">
+                    {item.message}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-400">
+                    {formatNotificationTime(item.createdAt)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -234,6 +411,29 @@ function isActive(pathname: string, href: string): boolean {
 
 function shortenLabel(label: string): string {
   return label.replace("화주 ", "").replace("대리점 ", "").replace("기사 ", "");
+}
+
+function formatBadgeCount(count: number): string {
+  return count > 99 ? "99+" : String(count);
+}
+
+function formatNotificationTime(value: string | null): string {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 const roleLabelMap: Record<UserRole, string> = {
