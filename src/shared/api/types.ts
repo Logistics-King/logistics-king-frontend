@@ -33,6 +33,15 @@ export type ProductCategory =
 
 export type ColdChainType = "NONE" | "REFRIGERATED" | "FROZEN";
 
+export type BoxSize =
+  | "SIZE_60"
+  | "SIZE_80"
+  | "SIZE_100"
+  | "SIZE_120"
+  | "SIZE_140"
+  | "SIZE_160"
+  | "ETC";
+
 export type Carrier =
   | "CJ"
   | "HANJIN"

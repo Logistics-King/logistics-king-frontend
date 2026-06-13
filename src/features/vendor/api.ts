@@ -1,9 +1,16 @@
 import { apiFetch } from "@/src/shared/api/client";
-import type { ColdChainType, PageResponse, ProductCategory } from "@/src/shared/api/types";
+import type { BoxSize, ColdChainType, PageResponse, ProductCategory } from "@/src/shared/api/types";
 
 export type ListQuery = {
   page?: number;
   size?: number;
+};
+
+export type VendorProductFilters = {
+  name?: string;
+  category?: ProductCategory;
+  boxSize?: BoxSize;
+  coldChainType?: ColdChainType;
 };
 
 export type VendorProductRequest = {
@@ -12,7 +19,10 @@ export type VendorProductRequest = {
   description: string | null;
   averagePrice: number | null;
   averageWeightGram: number | null;
-  boxSize: string | null;
+  boxSize: BoxSize | null;
+  destinationPostalCode: string | null;
+  destinationAddress: string;
+  destinationAddressDetail: string | null;
   fragile: boolean;
   liquid: boolean;
   freshFood: boolean;
@@ -30,8 +40,9 @@ export type VendorContractItem = Record<string, unknown>;
 export function getVendorProducts({
   page = 0,
   size = 20,
-}: ListQuery = {}): Promise<PageResponse<VendorProductItem>> {
-  return apiFetch(`/api/v1/vendors/me/products${toPageQuery(page, size)}`, {
+  ...filters
+}: ListQuery & VendorProductFilters = {}): Promise<PageResponse<VendorProductItem>> {
+  return apiFetch(`/api/v1/vendors/me/products${toPageQuery(page, size, filters)}`, {
     credentials: "include",
   });
 }
@@ -71,10 +82,16 @@ export function getVendorContracts({
   return apiFetch(`/api/v1/contracts/vendor/me${toPageQuery(page, size)}`);
 }
 
-function toPageQuery(page: number, size: number): string {
+function toPageQuery(page: number, size: number, filters: VendorProductFilters = {}): string {
   const searchParams = new URLSearchParams({
     page: String(page),
     size: String(size),
+  });
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) {
+      searchParams.set(key, value);
+    }
   });
 
   return `?${searchParams.toString()}`;
