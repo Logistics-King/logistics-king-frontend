@@ -22,6 +22,13 @@ export const menuItems: MenuItem[] = [
     group: "화주",
   },
   {
+    label: "화주 정보",
+    href: "/vendor/profile",
+    icon: UserIcon,
+    roles: vendorRoles,
+    group: "화주",
+  },
+  {
     label: "배송 품목 조회",
     href: "/vendor/products",
     icon: PackageIcon,
@@ -57,7 +64,7 @@ export const menuItems: MenuItem[] = [
     group: "대리점",
   },
   {
-    label: "대리점 프로필",
+    label: "대리점 정보",
     href: "/agency/profile",
     icon: UserIcon,
     roles: agencyRoles,
@@ -99,7 +106,7 @@ export const menuItems: MenuItem[] = [
     group: "배송기사",
   },
   {
-    label: "기사 프로필",
+    label: "기사 정보",
     href: "/driver/profile",
     icon: UserIcon,
     roles: driverRoles,
