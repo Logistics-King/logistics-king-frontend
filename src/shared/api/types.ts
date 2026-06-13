@@ -10,6 +10,16 @@ export type ApiEnvelope<T> = {
   payload: ApiPayload<T>;
 };
 
+export type PageResponse<T> = {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+};
+
 export type UserRole = "ADMIN" | "VENDOR" | "AGENCY" | "DRIVER";
 
 export type ProductCategory =
@@ -19,6 +29,17 @@ export type ProductCategory =
   | "ELECTRONICS"
   | "DOCUMENT"
   | "COSMETIC"
+  | "ETC";
+
+export type ColdChainType = "NONE" | "REFRIGERATED" | "FROZEN";
+
+export type BoxSize =
+  | "SIZE_60"
+  | "SIZE_80"
+  | "SIZE_100"
+  | "SIZE_120"
+  | "SIZE_140"
+  | "SIZE_160"
   | "ETC";
 
 export type Carrier =

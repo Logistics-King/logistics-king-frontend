@@ -1,11 +1,32 @@
+import { AppShell } from "@/src/shared/layout/AppShell";
+import { DashboardContent } from "@/src/shared/layout/DashboardContent";
+
 export default function DriverPage() {
   return (
-    <main className="min-h-screen bg-slate-100 px-5 py-10">
-      <section className="mx-auto max-w-5xl rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-semibold text-emerald-700">택배왕</p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-950">배송기사 홈</h1>
-        <p className="mt-3 text-slate-600">대리점이 요청한 배송기사 계약을 확인합니다.</p>
-      </section>
-    </main>
+    <AppShell
+      role="DRIVER"
+      title="배송기사 홈"
+      description="대리점이 요청한 배송기사 계약과 담당 지역을 확인합니다."
+    >
+      <DashboardContent
+        cards={[
+          {
+            label: "기사 프로필",
+            value: "확인",
+            description: "차량번호, 담당 지역, 연락처를 관리합니다.",
+          },
+          {
+            label: "기사 계약",
+            value: "수락",
+            description: "대리점이 요청한 계약 조건을 확인하고 응답합니다.",
+          },
+          {
+            label: "활동 상태",
+            value: "관리",
+            description: "집하 가능 여부와 메모를 최신 상태로 유지합니다.",
+          },
+        ]}
+      />
+    </AppShell>
   );
 }

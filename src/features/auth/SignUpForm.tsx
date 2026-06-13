@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { signUpAgency, signUpDriver, signUpVendor } from "./api";
-import { getRoleHomePath, signUpRoles, type SignUpRole } from "./roles";
+import { signUpRoles, type SignUpRole } from "./roles";
 
 type SignUpFormState = {
   loginId: string;
@@ -33,6 +33,13 @@ export function SignUpForm() {
     event.preventDefault();
     setErrorMessage("");
 
+    const validationMessage = validateSignUpForm(form);
+
+    if (validationMessage) {
+      setErrorMessage(validationMessage);
+      return;
+    }
+
     if (passwordMismatch) {
       return;
     }
@@ -40,8 +47,8 @@ export function SignUpForm() {
     setIsSubmitting(true);
 
     try {
-      const user = await submitByRole(selectedRole, form);
-      router.push(getRoleHomePath(user.role));
+      await submitByRole(selectedRole, form);
+      router.push("/login");
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -205,10 +212,11 @@ function TextField({
 
 function submitByRole(role: SignUpRole, form: SignUpFormState) {
   const request = {
-    loginId: form.loginId,
-    email: form.email,
+    loginId: form.loginId.trim(),
+    email: form.email.trim(),
     password: form.password,
-    name: form.name,
+    passwordConfirm: form.passwordConfirm,
+    name: form.name.trim(),
   };
   const submitters = {
     VENDOR: signUpVendor,
@@ -217,6 +225,38 @@ function submitByRole(role: SignUpRole, form: SignUpFormState) {
   };
 
   return submitters[role](request);
+}
+
+function validateSignUpForm(form: SignUpFormState): string {
+  if (!form.loginId.trim()) {
+    return "loginId는 필수입니다.";
+  }
+
+  if (!form.email.trim()) {
+    return "email은 필수입니다.";
+  }
+
+  if (!isValidEmail(form.email.trim())) {
+    return "email 형식이 올바르지 않습니다.";
+  }
+
+  if (!form.password.trim()) {
+    return "password는 필수입니다.";
+  }
+
+  if (!form.passwordConfirm.trim()) {
+    return "passwordConfirm은 필수입니다.";
+  }
+
+  if (!form.name.trim()) {
+    return "name은 필수입니다.";
+  }
+
+  return "";
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function getErrorMessage(error: unknown): string {
