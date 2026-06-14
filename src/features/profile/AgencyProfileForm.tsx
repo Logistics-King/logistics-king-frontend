@@ -69,6 +69,8 @@ const coldChainOptions: Array<{ value: ColdChainType; label: string }> = [
   { value: "FROZEN", label: "냉동" },
 ];
 
+// 대리점 프로필 등록/수정 화면입니다.
+// 기존 프로필이 있으면 GET으로 먼저 불러와 수정 모드로 동작하고, 없으면 등록 모드로 동작합니다.
 export function AgencyProfileForm() {
   const [form, setForm] = useState(initialFormState);
   const [profileExists, setProfileExists] = useState(false);
@@ -85,6 +87,7 @@ export function AgencyProfileForm() {
       setErrorMessage("");
 
       try {
+        // 대리점 프로필은 한 사용자당 하나라서, 화면 진입 시 먼저 기존 프로필을 조회합니다.
         const profile = await getAgencyProfile();
 
         if (active) {
@@ -133,6 +136,7 @@ export function AgencyProfileForm() {
     try {
       const request = toAgencyProfileRequest(form);
 
+      // profileExists 값으로 POST(등록)와 PUT(수정)을 나눕니다.
       if (profileExists) {
         const profile = await updateAgencyProfile(request);
         setForm(toFormState(profile));

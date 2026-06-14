@@ -15,6 +15,8 @@ import {
   type NotificationItem,
 } from "@/src/shared/notifications/api";
 
+// 로그인 이후 대부분의 내부 페이지가 공유하는 화면 껍데기입니다.
+// 좌측 메뉴, 모바일 하단 메뉴, 상단 네비게이션, 알림, 로그아웃을 한 곳에서 처리합니다.
 export function AppShell({
   role,
   title,
@@ -50,6 +52,7 @@ export function AppShell({
 function DesktopSidebar({ role, menuItems }: { role: UserRole; menuItems: MenuItem[] }) {
   const groups = groupMenuItems(menuItems);
 
+  // 데스크톱에서는 왼쪽 사이드바를 고정해서 업무 메뉴를 계속 보여줍니다.
   return (
     <aside className="sticky top-0 hidden h-screen w-72 shrink-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
       <div className="border-b border-slate-200 px-5 py-5">
@@ -108,6 +111,7 @@ function TopNavigation({ role }: { role: UserRole }) {
     }
 
     fetchUnreadCount();
+    // 백엔드에 실시간 알림 API가 아직 없어서 1분마다 unread count를 다시 조회합니다.
     const intervalId = window.setInterval(fetchUnreadCount, 60_000);
 
     return () => {
@@ -257,6 +261,7 @@ function NotificationPanel({
       }
 
       if (item.linkUrl) {
+        // 백엔드가 내려준 linkUrl이 있으면 알림 클릭 시 해당 화면으로 이동합니다.
         router.push(item.linkUrl);
         onClose();
       }
@@ -333,6 +338,7 @@ function MobileBottomNav({ menuItems }: { menuItems: MenuItem[] }) {
   const pathname = usePathname();
   const primaryItems = menuItems.slice(0, 5);
 
+  // 모바일에서는 사이드바 대신 하단 탭 메뉴를 씁니다.
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
       <div

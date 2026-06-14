@@ -26,6 +26,8 @@ const initialFormState: VendorProfileFormState = {
   mainRegion: "",
 };
 
+// 화주 프로필 등록 화면입니다.
+// 회원가입은 계정만 만들고, 이 화면에서 사업자/주소 정보를 별도로 등록합니다.
 export function VendorProfileForm() {
   const [form, setForm] = useState(initialFormState);
   const [errorMessage, setErrorMessage] = useState("");
@@ -47,6 +49,7 @@ export function VendorProfileForm() {
     setIsSubmitting(true);
 
     try {
+      // 화면 입력값은 문자열 중심이고, 백엔드 요청에는 빈 선택값을 null로 바꿔 보냅니다.
       await createVendorProfile({
         businessName: form.businessName.trim(),
         businessRegistrationNumber: blankToNull(form.businessRegistrationNumber),
@@ -202,6 +205,7 @@ function blankToNull(value: string): string | null {
 }
 
 function formatBusinessRegistrationNumber(value: string): string {
+  // 사업자등록번호는 숫자만 남긴 뒤 000-00-00000 형태로 화면에 보여줍니다.
   const digits = value.replace(/\D/g, "").slice(0, 10);
 
   if (digits.length <= 3) {
@@ -222,6 +226,7 @@ function isValidBusinessRegistrationNumber(value: string): boolean {
 }
 
 function formatPhoneNumber(value: string): string {
+  // 연락처도 숫자만 남기고 010-1234-5678 같은 형태로 자동 정리합니다.
   const digits = value.replace(/\D/g, "").slice(0, 11);
 
   if (digits.length <= 3) {

@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 
+// app/page.tsx는 루트 주소("/")에 보이는 첫 화면입니다.
+// Next.js App Router는 app 폴더 안의 page.tsx 파일을 URL 페이지로 사용합니다.
 const serviceStats = [
   { label: "계약 요청", value: "3분" },
   { label: "제안 비교", value: "한 화면" },

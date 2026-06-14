@@ -94,6 +94,9 @@ const boxSizeOptions: Array<{ value: BoxSize; label: string }> = [
   { value: "CUSTOM", label: "기타" },
 ];
 
+// 화주 배송 품목 화면은 두 모드로 재사용됩니다.
+// mode="list": 조회 화면 + 수정 폼
+// mode="create": 등록 전용 화면
 export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
   const [page, setPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
@@ -123,6 +126,7 @@ export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
       setNeedsVendorProfile(false);
 
       try {
+        // 목록 화면은 현재 page와 적용된 검색 조건(appliedFilters)로 백엔드를 조회합니다.
         const response = await getVendorProducts({
           page,
           size: pageSize,
@@ -170,6 +174,7 @@ export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
     try {
       const request = toProductRequest(form);
 
+      // editingProductId가 있으면 수정, 없으면 신규 등록입니다.
       if (editingProductId) {
         await updateVendorProduct(editingProductId, request);
         setSuccessMessage("배송 품목을 수정했습니다.");
@@ -209,6 +214,8 @@ export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
   }
 
   function applyFilters() {
+    // 입력 중인 필터(filters)와 실제 조회에 적용된 필터(appliedFilters)를 분리했습니다.
+    // 사용자가 조회 버튼을 누를 때만 백엔드 검색을 다시 실행하기 위함입니다.
     setAppliedFilters(filters);
     setPage(0);
   }

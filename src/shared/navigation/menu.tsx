@@ -1,6 +1,8 @@
 import type { ComponentType, SVGProps } from "react";
 import type { UserRole } from "@/src/shared/api/types";
 
+// AppShell이 그리는 좌측/하단 메뉴의 원본 데이터입니다.
+// 메뉴를 추가하고 싶으면 href, label, roles, group을 여기서 먼저 정의합니다.
 export type MenuItem = {
   label: string;
   href: string;
@@ -122,6 +124,7 @@ export const menuItems: MenuItem[] = [
 ];
 
 export function getMenuItems(role: UserRole): MenuItem[] {
+  // ADMIN은 모든 role 배열에 포함되어 있어서 모든 업무 메뉴를 볼 수 있습니다.
   return menuItems.filter((item) => item.roles.includes(role));
 }
 
