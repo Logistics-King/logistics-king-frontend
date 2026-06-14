@@ -1,5 +1,22 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Project Structure
+
+택배왕 프론트는 크게 `app`, `src/features`, `src/shared`로 나눕니다.
+
+- `app`: URL을 만드는 폴더입니다. 예를 들어 `app/vendor/products/page.tsx`는 `/vendor/products` 화면입니다. 보통 여기에는 화면 껍데기만 두고 복잡한 로직은 `src/features`로 넘깁니다.
+- `src/features`: 업무 기능별 실제 화면과 API 연동입니다. 예를 들어 `src/features/vendor`는 화주, `src/features/agency`는 대리점, `src/features/auth`는 로그인/회원가입입니다.
+- `src/shared`: 여러 기능에서 같이 쓰는 공용 코드입니다. API 호출 공통 함수, 타입, 메뉴, 레이아웃, 알림, 주소 검색 같은 코드가 여기에 있습니다.
+- `public`: 이미지처럼 브라우저가 직접 가져가는 정적 파일입니다. `/images/...` 경로로 사용할 수 있습니다.
+
+자주 보는 파일:
+
+- `src/shared/api/client.ts`: 백엔드 API 호출을 모아둔 공통 fetch 함수입니다.
+- `src/shared/api/types.ts`: 백엔드 enum과 공통 응답 타입을 모아둔 파일입니다.
+- `src/shared/layout/AppShell.tsx`: 로그인 이후 내부 페이지의 공통 레이아웃입니다.
+- `src/shared/navigation/menu.tsx`: 좌측/하단 메뉴 항목을 정의합니다.
+- `src/features/auth/LoginForm.tsx`: 로그인 후 역할별 홈 또는 프로필 등록 화면으로 이동시키는 흐름이 있습니다.
+
 ## Getting Started
 
 First, run the development server:
