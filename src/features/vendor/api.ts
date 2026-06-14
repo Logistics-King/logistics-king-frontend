@@ -39,6 +39,8 @@ export type VendorProductRequest = {
   averagePrice: number | null;
   averageWeightGram: number | null;
   boxSize: BoxSize | null;
+  boxQuantity: number;
+  itemQuantity: number;
   destinationPostalCode: string | null;
   destinationAddress: string;
   destinationAddressDetail: string | null;

@@ -318,6 +318,11 @@ export function AgencyOpenRequestsView() {
                   <InfoItem label="박스 크기" value={formatBoxSize(product.boxSize)} />
                 </div>
 
+                <div className="grid gap-3 md:grid-cols-2">
+                  <InfoItem label="박스 수량" value={formatQuantity(product.boxQuantity)} />
+                  <InfoItem label="낱개 수량" value={formatQuantity(product.itemQuantity)} />
+                </div>
+
                 <div className="flex flex-wrap gap-2">
                   <Flag active={product.fragile} label="파손 주의" />
                   <Flag active={product.liquid} label="액체" />
@@ -484,6 +489,10 @@ function formatWeight(value: number | null): string {
 
 function formatBoxSize(value: BoxSize | null): string {
   return value ? boxSizeLabels[value] : "-";
+}
+
+function formatQuantity(value: number): string {
+  return `${value.toLocaleString("ko-KR")}개`;
 }
 
 function formatVendorRegion(product: AgencyVendorProductItem): string {

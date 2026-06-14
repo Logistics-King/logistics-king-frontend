@@ -27,6 +27,8 @@ type ProductFormState = {
   averagePrice: string;
   averageWeightGram: string;
   boxSize: BoxSize | "";
+  boxQuantity: string;
+  itemQuantity: string;
   destinationPostalCode: string;
   destinationAddress: string;
   destinationAddressDetail: string;
@@ -52,6 +54,8 @@ const initialFormState: ProductFormState = {
   averagePrice: "",
   averageWeightGram: "",
   boxSize: "",
+  boxQuantity: "",
+  itemQuantity: "",
   destinationPostalCode: "",
   destinationAddress: "",
   destinationAddressDetail: "",
@@ -370,6 +374,32 @@ function ProductForm({
           </select>
         </Field>
 
+        <Field label="박스 수량">
+          <input
+            className={inputClassName}
+            inputMode="numeric"
+            min="0"
+            type="text"
+            value={formatIntegerInput(form.boxQuantity)}
+            onChange={(event) =>
+              onChange({ ...form, boxQuantity: normalizeIntegerInput(event.target.value) })
+            }
+          />
+        </Field>
+
+        <Field label="낱개 수량">
+          <input
+            className={inputClassName}
+            inputMode="numeric"
+            min="0"
+            type="text"
+            value={formatIntegerInput(form.itemQuantity)}
+            onChange={(event) =>
+              onChange({ ...form, itemQuantity: normalizeIntegerInput(event.target.value) })
+            }
+          />
+        </Field>
+
         <Field label="설명">
           <textarea
             className={`${inputClassName} min-h-24 resize-y py-3`}
@@ -632,6 +662,8 @@ function ProductsList({
                 <Info label="평균 가격" value={formatCurrency(product.averagePrice)} />
                 <Info label="평균 무게" value={formatWeight(product.averageWeightGram)} />
                 <Info label="박스 규격" value={formatBoxSize(product.boxSize)} />
+                <Info label="박스 수량" value={formatQuantity(product.boxQuantity)} />
+                <Info label="낱개 수량" value={formatQuantity(product.itemQuantity)} />
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
                 <Flag active={product.fragile} label="파손" />
@@ -773,6 +805,18 @@ function validateProductForm(form: ProductFormState): string {
     return "평균 무게는 정수로 입력해 주세요.";
   }
 
+  if (form.boxQuantity && !Number.isInteger(Number(form.boxQuantity))) {
+    return "박스 수량은 정수로 입력해 주세요.";
+  }
+
+  if (form.itemQuantity && !Number.isInteger(Number(form.itemQuantity))) {
+    return "낱개 수량은 정수로 입력해 주세요.";
+  }
+
+  if (toRequiredQuantity(form.boxQuantity) + toRequiredQuantity(form.itemQuantity) <= 0) {
+    return "박스 수량 또는 낱개 수량 중 하나는 1 이상이어야 합니다.";
+  }
+
   return "";
 }
 
@@ -797,6 +841,8 @@ function toProductRequest(form: ProductFormState): VendorProductRequest {
     averagePrice: numberToNullable(form.averagePrice),
     averageWeightGram: numberToNullable(form.averageWeightGram),
     boxSize: form.boxSize || null,
+    boxQuantity: toRequiredQuantity(form.boxQuantity),
+    itemQuantity: toRequiredQuantity(form.itemQuantity),
     destinationPostalCode: blankToNull(form.destinationPostalCode),
     destinationAddress: form.destinationAddress.trim(),
     destinationAddressDetail: blankToNull(form.destinationAddressDetail),
@@ -815,6 +861,8 @@ function toFormState(product: VendorProductItem): ProductFormState {
     averagePrice: nullableToString(product.averagePrice),
     averageWeightGram: nullableToString(product.averageWeightGram),
     boxSize: product.boxSize ?? "",
+    boxQuantity: String(product.boxQuantity),
+    itemQuantity: String(product.itemQuantity),
     destinationPostalCode: product.destinationPostalCode ?? "",
     destinationAddress: product.destinationAddress,
     destinationAddressDetail: product.destinationAddressDetail ?? "",
@@ -843,6 +891,10 @@ function numberToNullable(value: string): number | null {
   }
 
   return Number(value);
+}
+
+function toRequiredQuantity(value: string): number {
+  return value ? Number(value) : 0;
 }
 
 function normalizeNumericInput(value: string): string {
@@ -893,6 +945,10 @@ function formatWeight(value: number | null): string {
 
 function formatBoxSize(value: BoxSize | null): string {
   return value ? boxSizeLabelMap[value] : "-";
+}
+
+function formatQuantity(value: number): string {
+  return `${value.toLocaleString("ko-KR")}개`;
 }
 
 function formatAddress(product: VendorProductItem): string {
