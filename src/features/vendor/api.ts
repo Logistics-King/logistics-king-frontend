@@ -58,6 +58,56 @@ export type VendorProductItem = VendorProductRequest & {
 export type VendorContractRequestItem = Record<string, unknown>;
 export type VendorContractItem = Record<string, unknown>;
 
+export type ContractRequestType = "VENDOR_OFFER" | "AGENCY_OFFER";
+
+export type ContractRequestStatus = "OPEN" | "CANCELED" | "REJECTED" | "CONTRACTED";
+
+export type VendorContractRequestLine = {
+  itemId?: string;
+  productId: string | null;
+  productCategory: ProductCategory;
+  productName: string;
+  boxSize: BoxSize;
+  boxQuantity: number;
+  itemQuantity: number;
+  averageWeightGram: number | null;
+  fragile: boolean;
+  liquid: boolean;
+  freshFood: boolean;
+  coldChainType: ColdChainType;
+  targetUnitPrice: number | null;
+};
+
+export type VendorContractRequestPayload = {
+  type?: ContractRequestType;
+  approverId?: string | null;
+  productId: string | null;
+  pickupRegion: string;
+  pickupAddress: string;
+  monthlyVolume: number;
+  productCategory: ProductCategory;
+  productName: string;
+  boxSize: BoxSize;
+  pickupStartTime: string | null;
+  pickupEndTime: string | null;
+  saturdayDeliveryRequired: boolean;
+  returnRequired: boolean;
+  coldChainType: ColdChainType;
+  targetUnitPrice: number | null;
+  memo: string | null;
+  items: VendorContractRequestLine[];
+};
+
+export type VendorContractRequestDetail = VendorContractRequestPayload & {
+  contractRequestId: string;
+  vendorId: string | null;
+  agencyId: string | null;
+  requesterType: "VENDOR" | "AGENCY";
+  requesterId: string;
+  approverType: "VENDOR" | "AGENCY";
+  status: ContractRequestStatus;
+};
+
 export type VendorAgencySummary = {
   agencyId: string;
   carrier: Carrier;
@@ -119,8 +169,32 @@ export function updateVendorProduct(
 export function getVendorContractRequests({
   page = 0,
   size = 20,
-}: ListQuery = {}): Promise<PageResponse<VendorContractRequestItem>> {
+}: ListQuery = {}): Promise<PageResponse<VendorContractRequestDetail>> {
   return apiFetch(`/api/v1/contract-requests${toPageQuery(page, size)}`);
+}
+
+export function createVendorContractRequest(
+  request: VendorContractRequestPayload,
+): Promise<VendorContractRequestDetail> {
+  return apiFetch("/api/v1/contract-requests", {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify({
+      type: "VENDOR_OFFER",
+      ...request,
+    }),
+  });
+}
+
+export function updateVendorContractRequest(
+  contractRequestId: string,
+  request: VendorContractRequestPayload,
+): Promise<VendorContractRequestDetail> {
+  return apiFetch(`/api/v1/contract-requests/${contractRequestId}`, {
+    method: "PUT",
+    credentials: "include",
+    body: JSON.stringify(request),
+  });
 }
 
 export function getVendorContracts({
