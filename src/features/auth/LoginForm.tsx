@@ -43,6 +43,8 @@ export function LoginForm() {
         loginId: form.loginId.trim(),
         password: form.password,
       });
+      // 로그인 성공 뒤 바로 홈으로 보내지 않고, 역할별 프로필 존재 여부를 먼저 확인합니다.
+      // 프로필이 없으면 해당 프로필 등록 화면으로 보내서 필수 정보를 먼저 받습니다.
       const nextPath = await resolvePostLoginPath(user.role);
 
       router.push(nextPath);
@@ -105,17 +107,30 @@ export function LoginForm() {
         {isSubmitting ? "로그인 중" : "로그인"}
       </button>
 
-      <p className="text-center text-sm text-slate-600">
-        계정이 없으면{" "}
-        <Link className="font-semibold text-emerald-700 hover:text-emerald-800" href="/signup">
-          회원가입
-        </Link>
-      </p>
+      <div className="grid gap-2 text-center text-sm text-slate-600">
+        <p>
+          아이디나 비밀번호를 잊었으면{" "}
+          <Link
+            className="font-semibold text-emerald-700 hover:text-emerald-800"
+            href="/account-recovery"
+          >
+            계정 찾기
+          </Link>
+        </p>
+        <p>
+          계정이 없으면{" "}
+          <Link className="font-semibold text-emerald-700 hover:text-emerald-800" href="/signup">
+            회원가입
+          </Link>
+        </p>
+      </div>
     </form>
   );
 }
 
 async function resolvePostLoginPath(role: UserRole): Promise<string> {
+  // role은 백엔드 로그인 응답의 사용자 권한입니다.
+  // 권한마다 홈 화면과 필수 프로필 화면이 다릅니다.
   if (role === "VENDOR") {
     return resolveProfilePath(getVendorProfile, "/vendor/profile", "/vendor");
   }
@@ -141,6 +156,7 @@ async function resolveProfilePath(
 
     return homePath;
   } catch (error) {
+    // 프로필 없음은 정상적인 가입 직후 상태라서 에러 화면 대신 등록 페이지로 이동합니다.
     if (isProfileMissingError(error)) {
       return missingProfilePath;
     }

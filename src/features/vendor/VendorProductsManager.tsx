@@ -7,6 +7,7 @@ import { ApiError } from "@/src/shared/api/client";
 import type { BoxSize, ColdChainType, ProductCategory } from "@/src/shared/api/types";
 import type { PageResponse } from "@/src/shared/api/types";
 import { AddressSearchButton } from "@/src/shared/address/AddressSearchButton";
+import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
 import {
   createVendorProduct,
   getVendorProducts,
@@ -26,6 +27,8 @@ type ProductFormState = {
   averagePrice: string;
   averageWeightGram: string;
   boxSize: BoxSize | "";
+  boxQuantity: string;
+  itemQuantity: string;
   destinationPostalCode: string;
   destinationAddress: string;
   destinationAddressDetail: string;
@@ -51,6 +54,8 @@ const initialFormState: ProductFormState = {
   averagePrice: "",
   averageWeightGram: "",
   boxSize: "",
+  boxQuantity: "",
+  itemQuantity: "",
   destinationPostalCode: "",
   destinationAddress: "",
   destinationAddressDetail: "",
@@ -90,9 +95,12 @@ const boxSizeOptions: Array<{ value: BoxSize; label: string }> = [
   { value: "SIZE_120", label: "120사이즈" },
   { value: "SIZE_140", label: "140사이즈" },
   { value: "SIZE_160", label: "160사이즈" },
-  { value: "ETC", label: "기타" },
+  { value: "CUSTOM", label: "기타" },
 ];
 
+// 화주 배송 품목 화면은 두 모드로 재사용됩니다.
+// mode="list": 조회 화면 + 수정 폼
+// mode="create": 등록 전용 화면
 export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
   const [page, setPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
@@ -122,6 +130,7 @@ export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
       setNeedsVendorProfile(false);
 
       try {
+        // 목록 화면은 현재 page와 적용된 검색 조건(appliedFilters)로 백엔드를 조회합니다.
         const response = await getVendorProducts({
           page,
           size: pageSize,
@@ -169,6 +178,7 @@ export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
     try {
       const request = toProductRequest(form);
 
+      // editingProductId가 있으면 수정, 없으면 신규 등록입니다.
       if (editingProductId) {
         await updateVendorProduct(editingProductId, request);
         setSuccessMessage("배송 품목을 수정했습니다.");
@@ -208,6 +218,8 @@ export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
   }
 
   function applyFilters() {
+    // 입력 중인 필터(filters)와 실제 조회에 적용된 필터(appliedFilters)를 분리했습니다.
+    // 사용자가 조회 버튼을 누를 때만 백엔드 검색을 다시 실행하기 위함입니다.
     setAppliedFilters(filters);
     setPage(0);
   }
@@ -233,7 +245,7 @@ export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
         />
       ) : null}
 
-      {needsVendorProfile ? <VendorProfileRequiredNotice /> : null}
+      {needsVendorProfile ? <ProfileRequiredNotice role="VENDOR" /> : null}
 
       {mode === "list" ? (
         <ProductsList
@@ -248,23 +260,6 @@ export function VendorProductsManager({ mode }: VendorProductsManagerProps) {
           setPage={setPage}
         />
       ) : null}
-    </section>
-  );
-}
-
-function VendorProfileRequiredNotice() {
-  return (
-    <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
-      <p className="text-sm font-bold text-amber-900">화주 정보 등록이 먼저 필요합니다.</p>
-      <p className="mt-2 text-sm leading-6 text-amber-800">
-        배송 품목은 화주 사업 정보가 있어야 등록할 수 있습니다.
-      </p>
-      <Link
-        className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-[#071f46] px-4 text-sm font-bold text-white transition hover:bg-[#0a2d63]"
-        href="/vendor/profile"
-      >
-        화주 정보 등록
-      </Link>
     </section>
   );
 }
@@ -377,6 +372,32 @@ function ProductForm({
               </option>
             ))}
           </select>
+        </Field>
+
+        <Field label="박스 수량">
+          <input
+            className={inputClassName}
+            inputMode="numeric"
+            min="0"
+            type="text"
+            value={formatIntegerInput(form.boxQuantity)}
+            onChange={(event) =>
+              onChange({ ...form, boxQuantity: normalizeIntegerInput(event.target.value) })
+            }
+          />
+        </Field>
+
+        <Field label="낱개 수량">
+          <input
+            className={inputClassName}
+            inputMode="numeric"
+            min="0"
+            type="text"
+            value={formatIntegerInput(form.itemQuantity)}
+            onChange={(event) =>
+              onChange({ ...form, itemQuantity: normalizeIntegerInput(event.target.value) })
+            }
+          />
         </Field>
 
         <Field label="설명">
@@ -641,6 +662,8 @@ function ProductsList({
                 <Info label="평균 가격" value={formatCurrency(product.averagePrice)} />
                 <Info label="평균 무게" value={formatWeight(product.averageWeightGram)} />
                 <Info label="박스 규격" value={formatBoxSize(product.boxSize)} />
+                <Info label="박스 수량" value={formatQuantity(product.boxQuantity)} />
+                <Info label="낱개 수량" value={formatQuantity(product.itemQuantity)} />
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
                 <Flag active={product.fragile} label="파손" />
@@ -782,6 +805,18 @@ function validateProductForm(form: ProductFormState): string {
     return "평균 무게는 정수로 입력해 주세요.";
   }
 
+  if (form.boxQuantity && !Number.isInteger(Number(form.boxQuantity))) {
+    return "박스 수량은 정수로 입력해 주세요.";
+  }
+
+  if (form.itemQuantity && !Number.isInteger(Number(form.itemQuantity))) {
+    return "낱개 수량은 정수로 입력해 주세요.";
+  }
+
+  if (toRequiredQuantity(form.boxQuantity) + toRequiredQuantity(form.itemQuantity) <= 0) {
+    return "박스 수량 또는 낱개 수량 중 하나는 1 이상이어야 합니다.";
+  }
+
   return "";
 }
 
@@ -806,6 +841,8 @@ function toProductRequest(form: ProductFormState): VendorProductRequest {
     averagePrice: numberToNullable(form.averagePrice),
     averageWeightGram: numberToNullable(form.averageWeightGram),
     boxSize: form.boxSize || null,
+    boxQuantity: toRequiredQuantity(form.boxQuantity),
+    itemQuantity: toRequiredQuantity(form.itemQuantity),
     destinationPostalCode: blankToNull(form.destinationPostalCode),
     destinationAddress: form.destinationAddress.trim(),
     destinationAddressDetail: blankToNull(form.destinationAddressDetail),
@@ -824,6 +861,8 @@ function toFormState(product: VendorProductItem): ProductFormState {
     averagePrice: nullableToString(product.averagePrice),
     averageWeightGram: nullableToString(product.averageWeightGram),
     boxSize: product.boxSize ?? "",
+    boxQuantity: String(product.boxQuantity),
+    itemQuantity: String(product.itemQuantity),
     destinationPostalCode: product.destinationPostalCode ?? "",
     destinationAddress: product.destinationAddress,
     destinationAddressDetail: product.destinationAddressDetail ?? "",
@@ -852,6 +891,10 @@ function numberToNullable(value: string): number | null {
   }
 
   return Number(value);
+}
+
+function toRequiredQuantity(value: string): number {
+  return value ? Number(value) : 0;
 }
 
 function normalizeNumericInput(value: string): string {
@@ -902,6 +945,10 @@ function formatWeight(value: number | null): string {
 
 function formatBoxSize(value: BoxSize | null): string {
   return value ? boxSizeLabelMap[value] : "-";
+}
+
+function formatQuantity(value: number): string {
+  return `${value.toLocaleString("ko-KR")}개`;
 }
 
 function formatAddress(product: VendorProductItem): string {
@@ -958,5 +1005,5 @@ const boxSizeLabelMap: Record<BoxSize, string> = {
   SIZE_120: "120사이즈",
   SIZE_140: "140사이즈",
   SIZE_160: "160사이즈",
-  ETC: "기타",
+  CUSTOM: "기타",
 };
