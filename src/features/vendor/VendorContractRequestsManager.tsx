@@ -3,15 +3,21 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/src/shared/api/client";
 import type { BoxSize, ColdChainType, PageResponse, ProductCategory } from "@/src/shared/api/types";
+import { getVendorProfile, type VendorProfile } from "@/src/features/profile/api";
 import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
 import {
   createVendorContractRequest,
   getVendorAgencies,
+  getVendorContractRequestDetail,
+  getVendorContractRequestProposals,
   getVendorContractRequests,
+  getVendorProducts,
   type VendorAgencySummary,
   type VendorContractRequestDetail,
   type VendorContractRequestLine,
   type VendorContractRequestPayload,
+  type VendorProposalItem,
+  type VendorProductItem,
 } from "./api";
 
 type ContractRequestFormState = {
@@ -27,6 +33,7 @@ type ContractRequestFormState = {
 };
 
 type ContractRequestLineFormState = {
+  productId: string | null;
   productName: string;
   productCategory: ProductCategory;
   boxSize: BoxSize;
@@ -43,6 +50,7 @@ type ContractRequestLineFormState = {
 const pageSize = 10;
 
 const initialLineState: ContractRequestLineFormState = {
+  productId: null,
   productName: "",
   productCategory: "CLOTHING",
   boxSize: "SIZE_60",
@@ -99,12 +107,18 @@ export function VendorContractRequestsManager() {
   const [reloadKey, setReloadKey] = useState(0);
   const [form, setForm] = useState<ContractRequestFormState>(initialFormState);
   const [agencies, setAgencies] = useState<VendorAgencySummary[]>([]);
+  const [productTemplates, setProductTemplates] = useState<VendorProductItem[]>([]);
   const [pageResponse, setPageResponse] =
     useState<PageResponse<VendorContractRequestDetail> | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<VendorContractRequestDetail | null>(null);
+  const [selectedRequestProposals, setSelectedRequestProposals] =
+    useState<PageResponse<VendorProposalItem> | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [detailErrorMessage, setDetailErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [needsVendorProfile, setNeedsVendorProfile] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totalBoxQuantity = useMemo(
@@ -125,14 +139,26 @@ export function VendorContractRequestsManager() {
       setNeedsVendorProfile(false);
 
       try {
-        const [agencyPage, requestPage] = await Promise.all([
+        const [profile, agencyPage, productPage, requestPage] = await Promise.all([
+          getVendorProfile(),
           getVendorAgencies({ page: 0, size: 100 }),
+          getVendorProducts({ page: 0, size: 100 }),
           getVendorContractRequests({ page, size: pageSize }),
         ]);
 
         if (active) {
           setAgencies(agencyPage.items);
+          setProductTemplates(productPage.items);
           setPageResponse(requestPage);
+          setForm((current) =>
+            hasPickupDefaults(current)
+              ? current
+              : {
+                  ...current,
+                  pickupRegion: profile.mainRegion,
+                  pickupAddress: formatProfileAddress(profile),
+                },
+          );
         }
       } catch (error) {
         if (active) {
@@ -206,6 +232,33 @@ export function VendorContractRequestsManager() {
       ...current,
       items: current.items.filter((_, itemIndex) => itemIndex !== index),
     }));
+  }
+
+  async function handleSelectRequest(contractRequestId: string) {
+    setIsDetailLoading(true);
+    setDetailErrorMessage("");
+    setSelectedRequest(null);
+    setSelectedRequestProposals(null);
+
+    try {
+      const [detail, proposals] = await Promise.all([
+        getVendorContractRequestDetail(contractRequestId),
+        getVendorContractRequestProposals(contractRequestId, { page: 0, size: 20 }),
+      ]);
+
+      setSelectedRequest(detail);
+      setSelectedRequestProposals(proposals);
+    } catch (error) {
+      setDetailErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsDetailLoading(false);
+    }
+  }
+
+  function closeDetailPanel() {
+    setSelectedRequest(null);
+    setSelectedRequestProposals(null);
+    setDetailErrorMessage("");
   }
 
   return (
@@ -325,6 +378,7 @@ export function VendorContractRequestsManager() {
               key={index}
               onChange={(nextLine) => updateLine(index, nextLine)}
               onRemove={() => removeLine(index)}
+              productTemplates={productTemplates}
             />
           ))}
         </div>
@@ -356,10 +410,21 @@ export function VendorContractRequestsManager() {
 
       <ContractRequestList
         isLoading={isLoading}
+        onSelect={handleSelectRequest}
         page={page}
         pageResponse={pageResponse}
         setPage={setPage}
       />
+
+      {selectedRequest || isDetailLoading || detailErrorMessage ? (
+        <ContractRequestDetailPanel
+          errorMessage={detailErrorMessage}
+          isLoading={isDetailLoading}
+          onClose={closeDetailPanel}
+          proposals={selectedRequestProposals}
+          request={selectedRequest}
+        />
+      ) : null}
     </section>
   );
 }
@@ -370,12 +435,14 @@ function LineCard({
   item,
   onChange,
   onRemove,
+  productTemplates,
 }: {
   canRemove: boolean;
   index: number;
   item: ContractRequestLineFormState;
   onChange: (item: ContractRequestLineFormState) => void;
   onRemove: () => void;
+  productTemplates: VendorProductItem[];
 }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -393,6 +460,27 @@ function LineCard({
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Field label="등록 품목 선택">
+          <select
+            className={inputClassName}
+            value={item.productId ?? ""}
+            onChange={(event) => {
+              const template = productTemplates.find(
+                (product) => product.productId === event.target.value,
+              );
+
+              onChange(template ? applyProductTemplate(item, template) : { ...item, productId: null });
+            }}
+          >
+            <option value="">직접 입력</option>
+            {productTemplates.map((product) => (
+              <option key={product.productId} value={product.productId}>
+                {product.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+
         <Field label="품목명">
           <input
             className={inputClassName}
@@ -515,11 +603,13 @@ function LineCard({
 
 function ContractRequestList({
   isLoading,
+  onSelect,
   page,
   pageResponse,
   setPage,
 }: {
   isLoading: boolean;
+  onSelect: (contractRequestId: string) => void;
   page: number;
   pageResponse: PageResponse<VendorContractRequestDetail> | null;
   setPage: (updater: (current: number) => number) => void;
@@ -541,12 +631,22 @@ function ContractRequestList({
       ) : pageResponse && pageResponse.items.length > 0 ? (
         <div className="divide-y divide-slate-100">
           {pageResponse.items.map((request) => (
-            <article className="grid gap-4 px-5 py-4 lg:grid-cols-[1.5fr_1fr_1fr_1fr]" key={request.contractRequestId}>
+            <button
+              className="grid w-full gap-4 px-5 py-4 text-left transition hover:bg-slate-50 lg:grid-cols-[1.5fr_1fr_1fr_1fr]"
+              key={request.contractRequestId}
+              onClick={() => onSelect(request.contractRequestId)}
+              type="button"
+            >
               <Info label="대표 품목" value={request.productName} />
               <Info label="배송 라인" value={`${formatNumber(request.items.length)}개`} />
               <Info label="총 박스" value={`${formatNumber(sumBoxQuantity(request.items))}개`} />
-              <Info label="상태" value={request.status} />
-            </article>
+              <div>
+                <p className="text-xs font-bold text-slate-400">상태</p>
+                <div className="mt-1">
+                  <StatusBadge status={request.status} />
+                </div>
+              </div>
+            </button>
           ))}
         </div>
       ) : (
@@ -580,6 +680,159 @@ function ContractRequestList({
         </div>
       </div>
     </div>
+  );
+}
+
+function ContractRequestDetailPanel({
+  errorMessage,
+  isLoading,
+  onClose,
+  proposals,
+  request,
+}: {
+  errorMessage: string;
+  isLoading: boolean;
+  onClose: () => void;
+  proposals: PageResponse<VendorProposalItem> | null;
+  request: VendorContractRequestDetail | null;
+}) {
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-center bg-slate-950/45 px-4 py-6">
+      <section className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
+          <div>
+            <p className="text-xs font-bold text-slate-400">계약 요청</p>
+            <h2 className="mt-1 text-xl font-bold text-slate-950">상세와 대리점 제안</h2>
+          </div>
+          <button
+            className="h-10 rounded-md border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:border-slate-500"
+            onClick={onClose}
+            type="button"
+          >
+            닫기
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="grid gap-3 p-5">
+            <div className="h-24 rounded-md bg-slate-100" />
+            <div className="h-44 rounded-md bg-slate-100" />
+            <div className="h-32 rounded-md bg-slate-100" />
+          </div>
+        ) : errorMessage ? (
+          <div className="p-5">
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              {errorMessage}
+            </p>
+          </div>
+        ) : request ? (
+          <div className="grid gap-5 p-5">
+            <div className="grid gap-4 rounded-lg border border-slate-200 p-4 lg:grid-cols-4">
+              <Info label="대표 품목" value={request.productName} />
+              <Info label="픽업 지역" value={request.pickupRegion} />
+              <Info
+                label="총 박스"
+                value={`${formatNumber(sumBoxQuantity(request.items))}개`}
+              />
+              <div>
+                <p className="text-xs font-bold text-slate-400">상태</p>
+                <div className="mt-1">
+                  <StatusBadge status={request.status} />
+                </div>
+              </div>
+              <Info label="픽업 주소" value={request.pickupAddress || "-"} />
+              <Info label="픽업 시간" value={formatPickupTime(request)} />
+              <Info label="토요일 배송" value={request.saturdayDeliveryRequired ? "필요" : "불필요"} />
+              <Info label="반품 처리" value={request.returnRequired ? "필요" : "불필요"} />
+            </div>
+
+            {request.memo ? (
+              <div className="rounded-lg border border-slate-200 p-4">
+                <p className="text-xs font-bold text-slate-400">요청 메모</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                  {request.memo}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="rounded-lg border border-slate-200">
+              <div className="border-b border-slate-200 px-4 py-3">
+                <h3 className="text-base font-bold text-slate-950">배송 물품 라인</h3>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {request.items.map((item, index) => (
+                  <LineReadOnlyCard item={item} key={item.itemId ?? index} />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                <h3 className="text-base font-bold text-slate-950">대리점 제안</h3>
+                <span className="text-sm font-bold text-[#071f46]">
+                  {formatNumber(proposals?.totalElements ?? 0)}건
+                </span>
+              </div>
+              {proposals && proposals.items.length > 0 ? (
+                <div className="divide-y divide-slate-100">
+                  {proposals.items.map((proposal) => (
+                    <ProposalCard key={proposal.proposalId} proposal={proposal} />
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 py-10 text-center">
+                  <p className="text-sm font-semibold text-slate-500">도착한 제안이 없습니다.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function LineReadOnlyCard({ item }: { item: VendorContractRequestLine }) {
+  return (
+    <article className="grid gap-4 px-4 py-4 lg:grid-cols-5">
+      <Info label="품목명" value={item.productName} />
+      <Info label="박스 크기" value={formatBoxSize(item.boxSize)} />
+      <Info label="수량" value={formatLineQuantity(item)} />
+      <Info label="온도 관리" value={formatColdChainType(item.coldChainType)} />
+      <Info label="희망 단가" value={formatCurrency(item.targetUnitPrice)} />
+    </article>
+  );
+}
+
+function ProposalCard({ proposal }: { proposal: VendorProposalItem }) {
+  return (
+    <article className="grid gap-4 px-4 py-4 lg:grid-cols-5">
+      <Info label="대리점 ID" value={proposal.agencyId} />
+      <Info label="제안 단가" value={formatCurrency(proposal.unitPrice)} />
+      <Info label="픽업 시간" value={formatProposalPickupTime(proposal)} />
+      <Info label="온도 관리" value={formatColdChainType(proposal.coldChainType)} />
+      <Info label="상태" value={proposal.status} />
+      {proposal.memo ? (
+        <div className="lg:col-span-5">
+          <Info label="제안 메모" value={proposal.memo} />
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function StatusBadge({ status }: { status: VendorContractRequestDetail["status"] }) {
+  const style = {
+    OPEN: "border-blue-200 bg-blue-50 text-blue-700",
+    CANCELED: "border-slate-200 bg-slate-100 text-slate-600",
+    REJECTED: "border-red-200 bg-red-50 text-red-700",
+    CONTRACTED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  }[status];
+
+  return (
+    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${style}`}>
+      {formatStatus(status)}
+    </span>
   );
 }
 
@@ -676,7 +929,7 @@ function toRequestPayload(form: ContractRequestFormState): VendorContractRequest
 
 function toRequestLine(item: ContractRequestLineFormState): VendorContractRequestLine {
   return {
-    productId: null,
+    productId: item.productId,
     productCategory: item.productCategory,
     productName: item.productName.trim(),
     boxSize: item.boxSize,
@@ -691,10 +944,44 @@ function toRequestLine(item: ContractRequestLineFormState): VendorContractReques
   };
 }
 
+function applyProductTemplate(
+  current: ContractRequestLineFormState,
+  product: VendorProductItem,
+): ContractRequestLineFormState {
+  return {
+    ...current,
+    productId: product.productId,
+    productCategory: product.category,
+    productName: product.name,
+    boxSize: product.boxSize ?? current.boxSize,
+    boxQuantity: String(product.boxQuantity),
+    itemQuantity: String(product.itemQuantity),
+    averageWeightGram: nullableToString(product.averageWeightGram),
+    fragile: product.fragile,
+    liquid: product.liquid,
+    freshFood: product.freshFood,
+    coldChainType: product.coldChainType,
+  };
+}
+
 function blankToNull(value: string): string | null {
   const trimmed = value.trim();
 
   return trimmed ? trimmed : null;
+}
+
+function nullableToString(value: number | null): string {
+  return value === null ? "" : String(value);
+}
+
+function hasPickupDefaults(form: ContractRequestFormState): boolean {
+  return Boolean(form.pickupRegion.trim() || form.pickupAddress.trim());
+}
+
+function formatProfileAddress(profile: VendorProfile): string {
+  const detail = profile.addressDetail ? ` ${profile.addressDetail}` : "";
+
+  return `${profile.address}${detail}`;
 }
 
 function numberToNullable(value: string): number | null {
@@ -719,6 +1006,54 @@ function sumBoxQuantity(items: VendorContractRequestLine[]): number {
 
 function formatNumber(value: number): string {
   return value.toLocaleString("ko-KR");
+}
+
+function formatStatus(status: VendorContractRequestDetail["status"]): string {
+  const labels: Record<VendorContractRequestDetail["status"], string> = {
+    OPEN: "진행중",
+    CANCELED: "취소됨",
+    REJECTED: "거절됨",
+    CONTRACTED: "계약 완료",
+  };
+
+  return labels[status];
+}
+
+function formatBoxSize(value: BoxSize): string {
+  return boxSizeOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function formatColdChainType(value: ColdChainType): string {
+  return coldChainOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function formatLineQuantity(item: VendorContractRequestLine): string {
+  const quantities = [
+    item.boxQuantity > 0 ? `박스 ${formatNumber(item.boxQuantity)}개` : "",
+    item.itemQuantity > 0 ? `낱개 ${formatNumber(item.itemQuantity)}개` : "",
+  ].filter(Boolean);
+
+  return quantities.length > 0 ? quantities.join(" / ") : "-";
+}
+
+function formatCurrency(value: number | null): string {
+  return value === null ? "-" : `${formatNumber(value)}원`;
+}
+
+function formatPickupTime(request: VendorContractRequestDetail): string {
+  if (!request.pickupStartTime && !request.pickupEndTime) {
+    return "-";
+  }
+
+  return `${request.pickupStartTime ?? "-"} ~ ${request.pickupEndTime ?? "-"}`;
+}
+
+function formatProposalPickupTime(proposal: VendorProposalItem): string {
+  if (!proposal.pickupStartTime && !proposal.pickupEndTime) {
+    return "-";
+  }
+
+  return `${proposal.pickupStartTime ?? "-"} ~ ${proposal.pickupEndTime ?? "-"}`;
 }
 
 function getErrorMessage(error: unknown): string {

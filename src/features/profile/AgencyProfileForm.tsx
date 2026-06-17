@@ -28,7 +28,7 @@ type AgencyProfileFormState = {
   saturdayPickupAvailable: boolean;
   saturdayDeliveryAvailable: boolean;
   returnAvailable: boolean;
-  coldChainType: ColdChainType;
+  supportedColdChainTypes: ColdChainType[];
   maxMonthlyVolume: string;
 };
 
@@ -48,7 +48,7 @@ const initialFormState: AgencyProfileFormState = {
   saturdayPickupAvailable: false,
   saturdayDeliveryAvailable: false,
   returnAvailable: false,
-  coldChainType: "NONE",
+  supportedColdChainTypes: ["NONE"],
   maxMonthlyVolume: "",
 };
 
@@ -255,12 +255,28 @@ export function AgencyProfileForm() {
         <BooleanField checked={form.returnAvailable} label="반품 가능" onChange={(checked) => setForm({ ...form, returnAvailable: checked })} />
       </div>
 
-      <SelectField
-        label="온도 관리"
-        value={form.coldChainType}
-        options={coldChainOptions}
-        onChange={(value) => setForm({ ...form, coldChainType: value as ColdChainType })}
-      />
+      <div className="mt-5 grid gap-2">
+        <span className="text-sm font-semibold text-slate-700">지원 온도 관리</span>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {coldChainOptions.map((option) => (
+            <BooleanField
+              checked={form.supportedColdChainTypes.includes(option.value)}
+              key={option.value}
+              label={option.label}
+              onChange={(checked) =>
+                setForm({
+                  ...form,
+                  supportedColdChainTypes: toggleColdChainType(
+                    form.supportedColdChainTypes,
+                    option.value,
+                    checked,
+                  ),
+                })
+              }
+            />
+          ))}
+        </div>
+      </div>
 
       {errorMessage ? (
         <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -397,6 +413,10 @@ function validateForm(form: AgencyProfileFormState): string {
     return "담당 가능 지역은 1개 이상이어야 합니다.";
   }
 
+  if (form.supportedColdChainTypes.length === 0) {
+    return "지원 온도 관리는 1개 이상 선택해야 합니다.";
+  }
+
   if (form.maxMonthlyVolume && Number(form.maxMonthlyVolume) < 0) {
     return "월 처리 가능 물량은 0 이상이어야 합니다.";
   }
@@ -421,7 +441,7 @@ function toAgencyProfileRequest(form: AgencyProfileFormState): AgencyProfileRequ
     saturdayPickupAvailable: form.saturdayPickupAvailable,
     saturdayDeliveryAvailable: form.saturdayDeliveryAvailable,
     returnAvailable: form.returnAvailable,
-    coldChainType: form.coldChainType,
+    supportedColdChainTypes: form.supportedColdChainTypes,
     maxMonthlyVolume: numberToNullable(form.maxMonthlyVolume),
   };
 }
@@ -445,9 +465,25 @@ function toFormState(profile: AgencyProfile): AgencyProfileFormState {
     saturdayPickupAvailable: profile.saturdayPickupAvailable,
     saturdayDeliveryAvailable: profile.saturdayDeliveryAvailable,
     returnAvailable: profile.returnAvailable,
-    coldChainType: profile.coldChainType,
+    supportedColdChainTypes: normalizeSupportedColdChainTypes(profile.supportedColdChainTypes),
     maxMonthlyVolume: profile.maxMonthlyVolume === null ? "" : String(profile.maxMonthlyVolume),
   };
+}
+
+function toggleColdChainType(
+  currentTypes: ColdChainType[],
+  value: ColdChainType,
+  checked: boolean,
+): ColdChainType[] {
+  if (checked) {
+    return Array.from(new Set([...currentTypes, value]));
+  }
+
+  return currentTypes.filter((type) => type !== value);
+}
+
+function normalizeSupportedColdChainTypes(value: ColdChainType[] | undefined): ColdChainType[] {
+  return value && value.length > 0 ? value : ["NONE"];
 }
 
 function parseServiceRegions(value: string): string[] {

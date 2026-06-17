@@ -33,7 +33,7 @@ export type AgencyProfileRequest = {
   saturdayPickupAvailable: boolean;
   saturdayDeliveryAvailable: boolean;
   returnAvailable: boolean;
-  coldChainType: ColdChainType;
+  supportedColdChainTypes: ColdChainType[];
   maxMonthlyVolume: number | null;
 };
 

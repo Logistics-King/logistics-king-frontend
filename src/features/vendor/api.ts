@@ -61,6 +61,13 @@ export type VendorContractItem = Record<string, unknown>;
 export type ContractRequestType = "VENDOR_OFFER" | "AGENCY_OFFER";
 
 export type ContractRequestStatus = "OPEN" | "CANCELED" | "REJECTED" | "CONTRACTED";
+export type VendorProposalStatus =
+  | "SUBMITTED"
+  | "UPDATED"
+  | "WITHDRAWN"
+  | "ACCEPTED"
+  | "REJECTED"
+  | string;
 
 export type VendorContractRequestLine = {
   itemId?: string;
@@ -106,6 +113,21 @@ export type VendorContractRequestDetail = VendorContractRequestPayload & {
   requesterId: string;
   approverType: "VENDOR" | "AGENCY";
   status: ContractRequestStatus;
+};
+
+export type VendorProposalItem = {
+  proposalId: string;
+  contractRequestId: string;
+  vendorId: string;
+  agencyId: string;
+  unitPrice: number;
+  pickupStartTime: string | null;
+  pickupEndTime: string | null;
+  saturdayDeliveryAvailable: boolean;
+  returnAvailable: boolean;
+  coldChainType: ColdChainType;
+  memo: string | null;
+  status: VendorProposalStatus;
 };
 
 export type VendorAgencySummary = {
@@ -171,6 +193,21 @@ export function getVendorContractRequests({
   size = 20,
 }: ListQuery = {}): Promise<PageResponse<VendorContractRequestDetail>> {
   return apiFetch(`/api/v1/contract-requests${toPageQuery(page, size)}`);
+}
+
+export function getVendorContractRequestDetail(
+  contractRequestId: string,
+): Promise<VendorContractRequestDetail> {
+  return apiFetch(`/api/v1/contract-requests/${contractRequestId}`);
+}
+
+export function getVendorContractRequestProposals(
+  contractRequestId: string,
+  { page = 0, size = 20 }: ListQuery = {},
+): Promise<PageResponse<VendorProposalItem>> {
+  return apiFetch(
+    `/api/v1/contract-requests/${contractRequestId}/proposals${toPageQuery(page, size)}`,
+  );
 }
 
 export function createVendorContractRequest(
