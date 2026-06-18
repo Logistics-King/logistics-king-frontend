@@ -26,6 +26,12 @@ README 사용자 안내에 들어갈 화면 캡처를 이 폴더에 저장합니
 - `login.png`
 - `signup.png`
 - `account-recovery.png`
+- `notifications.png`
+- `vendor-home.png`
+- `vendor-profile.png`
+- `vendor-products.png`
+- `vendor-product-create.png`
+- `vendor-contract-request-create.png`
 
 캡처 기준:
 
