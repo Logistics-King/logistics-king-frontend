@@ -15,9 +15,12 @@ README 사용자 안내에 들어갈 화면 캡처를 이 폴더에 저장합니
 - `vendor-contract-request-create.png`
 - `vendor-contract-requests.png`
 - `vendor-contracts.png`
+- `vendor-contract-request-detail.png`
+- `agency-home.png`
 - `agency-profile.png`
 - `agency-open-requests.png`
 - `agency-proposal-create.png`
+- `agency-proposals.png`
 - `driver-home.png`
 - `admin-home.png`
 
@@ -27,13 +30,20 @@ README 사용자 안내에 들어갈 화면 캡처를 이 폴더에 저장합니
 - `login.png`
 - `signup.png`
 - `account-recovery.png`
+- `notifications.png`
 - `vendor-home.png`
 - `vendor-profile.png`
-- `vendor-product-create.png`
 - `vendor-products.png`
+- `vendor-product-create.png`
 - `vendor-contract-request-create.png`
 - `vendor-contract-requests.png`
 - `vendor-contracts.png`
+- `vendor-contract-request-detail.png`
+- `agency-home.png`
+- `agency-profile.png`
+- `agency-open-requests.png`
+- `agency-proposal-create.png`
+- `agency-proposals.png`
 
 캡처 기준:
 

@@ -9,6 +9,7 @@ export type MenuItem = {
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   roles: UserRole[];
   group: "화주" | "대리점" | "배송기사";
+  children?: MenuItem[];
 };
 
 const vendorRoles: UserRole[] = ["ADMIN", "VENDOR"];
@@ -31,25 +32,50 @@ export const menuItems: MenuItem[] = [
     group: "화주",
   },
   {
-    label: "배송 품목 조회",
-    href: "/vendor/products",
+    label: "배송 품목",
+    href: "/vendor/products/new",
     icon: PackageIcon,
     roles: vendorRoles,
     group: "화주",
-  },
-  {
-    label: "배송 품목 등록",
-    href: "/vendor/products/new",
-    icon: FileIcon,
-    roles: vendorRoles,
-    group: "화주",
+    children: [
+      {
+        label: "배송 품목 등록",
+        href: "/vendor/products/new",
+        icon: FileIcon,
+        roles: vendorRoles,
+        group: "화주",
+      },
+      {
+        label: "배송 품목 조회",
+        href: "/vendor/products",
+        icon: PackageIcon,
+        roles: vendorRoles,
+        group: "화주",
+      },
+    ],
   },
   {
     label: "계약 요청",
-    href: "/vendor/contract-requests",
+    href: "/vendor/contract-requests/new",
     icon: FileIcon,
     roles: vendorRoles,
     group: "화주",
+    children: [
+      {
+        label: "계약 요청 등록",
+        href: "/vendor/contract-requests/new",
+        icon: FileIcon,
+        roles: vendorRoles,
+        group: "화주",
+      },
+      {
+        label: "계약 요청 조회",
+        href: "/vendor/contract-requests",
+        icon: SearchIcon,
+        roles: vendorRoles,
+        group: "화주",
+      },
+    ],
   },
   {
     label: "화주 계약",
