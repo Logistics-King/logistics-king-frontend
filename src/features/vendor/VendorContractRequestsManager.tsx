@@ -8,6 +8,7 @@ import type { BoxSize, ColdChainType, PageResponse, ProductCategory } from "@/sr
 import { getVendorProfile, type VendorProfile } from "@/src/features/profile/api";
 import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
 import {
+  acceptVendorProposal,
   cancelVendorContractRequest,
   createVendorContractRequest,
   getVendorAgencies,
@@ -122,6 +123,7 @@ export function VendorContractRequestsManager({
   const router = useRouter();
   const searchParams = useSearchParams();
   const editContractRequestId = mode === "create" ? searchParams.get("edit") : null;
+  const selectedContractRequestId = mode === "list" ? searchParams.get("selected") : null;
   const [page, setPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
   const [form, setForm] = useState<ContractRequestFormState>(initialFormState);
@@ -140,6 +142,7 @@ export function VendorContractRequestsManager({
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [acceptingProposalId, setAcceptingProposalId] = useState<string | null>(null);
   const isCreateMode = mode === "create";
 
   const totalBoxQuantity = useMemo(
@@ -307,6 +310,28 @@ export function VendorContractRequestsManager({
     }
   }
 
+  useEffect(() => {
+    if (!selectedContractRequestId || isCreateMode) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      handleSelectRequest(selectedContractRequestId);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isCreateMode, selectedContractRequestId]);
+
+  async function refreshSelectedRequest(contractRequestId: string) {
+    const [detail, proposals] = await Promise.all([
+      getVendorContractRequestDetail(contractRequestId),
+      getVendorContractRequestProposals(contractRequestId, { page: 0, size: 20 }),
+    ]);
+
+    setSelectedRequest(detail);
+    setSelectedRequestProposals(proposals);
+  }
+
   function closeDetailPanel() {
     setSelectedRequest(null);
     setSelectedRequestProposals(null);
@@ -335,6 +360,27 @@ export function VendorContractRequestsManager({
       setDetailErrorMessage(getErrorMessage(error));
     } finally {
       setIsCanceling(false);
+    }
+  }
+
+  async function handleAcceptProposal(proposal: VendorProposalItem) {
+    if (!window.confirm("이 대리점 제안을 수락하고 최종 계약을 생성할까요?")) {
+      return;
+    }
+
+    setAcceptingProposalId(proposal.proposalId);
+    setDetailErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await acceptVendorProposal(proposal.proposalId);
+      await refreshSelectedRequest(proposal.contractRequestId);
+      setSuccessMessage("제안을 수락하고 최종 계약을 생성했습니다.");
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setDetailErrorMessage(getErrorMessage(error));
+    } finally {
+      setAcceptingProposalId(null);
     }
   }
 
@@ -529,8 +575,10 @@ export function VendorContractRequestsManager({
       {selectedRequest || isDetailLoading || detailErrorMessage ? (
         <ContractRequestDetailPanel
           errorMessage={detailErrorMessage}
+          acceptingProposalId={acceptingProposalId}
           isLoading={isDetailLoading}
           isCanceling={isCanceling}
+          onAcceptProposal={handleAcceptProposal}
           onCancel={handleCancelRequest}
           onClose={closeDetailPanel}
           onEdit={handleEditRequest}
@@ -797,18 +845,22 @@ function ContractRequestList({
 }
 
 function ContractRequestDetailPanel({
+  acceptingProposalId,
   errorMessage,
   isCanceling,
   isLoading,
+  onAcceptProposal,
   onCancel,
   onClose,
   onEdit,
   proposals,
   request,
 }: {
+  acceptingProposalId: string | null;
   errorMessage: string;
   isCanceling: boolean;
   isLoading: boolean;
+  onAcceptProposal: (proposal: VendorProposalItem) => void;
   onCancel: (contractRequestId: string) => void;
   onClose: () => void;
   onEdit: (contractRequestId: string) => void;
@@ -928,7 +980,13 @@ function ContractRequestDetailPanel({
               {proposals && proposals.items.length > 0 ? (
                 <div className="divide-y divide-slate-100">
                   {proposals.items.map((proposal) => (
-                    <ProposalCard key={proposal.proposalId} proposal={proposal} />
+                    <ProposalCard
+                      canAccept={request.status === "OPEN"}
+                      isAccepting={acceptingProposalId === proposal.proposalId}
+                      key={proposal.proposalId}
+                      onAccept={onAcceptProposal}
+                      proposal={proposal}
+                    />
                   ))}
                 </div>
               ) : (
@@ -956,20 +1014,42 @@ function LineReadOnlyCard({ item }: { item: VendorContractRequestLine }) {
   );
 }
 
-function ProposalCard({ proposal }: { proposal: VendorProposalItem }) {
+function ProposalCard({
+  canAccept,
+  isAccepting,
+  onAccept,
+  proposal,
+}: {
+  canAccept: boolean;
+  isAccepting: boolean;
+  onAccept: (proposal: VendorProposalItem) => void;
+  proposal: VendorProposalItem;
+}) {
+  const acceptEnabled = canAccept && proposal.status === "SUBMITTED";
+
   return (
-    <article className="grid gap-4 px-4 py-4 lg:grid-cols-5">
-      <Info label="대리점" value={proposal.agency?.agencyName ?? proposal.agencyId} />
-      <Info label="택배사/지역" value={formatProposalAgencyArea(proposal)} />
-      <Info label="제안 단가" value={formatCurrency(proposal.unitPrice)} />
-      <Info label="픽업 시간" value={formatProposalPickupTime(proposal)} />
-      <Info label="온도 관리" value={formatColdChainType(proposal.coldChainType)} />
-      <Info label="상태" value={formatProposalStatus(proposal.status)} />
+    <article className="grid gap-4 px-4 py-4">
+      <div className="grid gap-4 lg:grid-cols-6">
+        <Info label="대리점" value={proposal.agency?.agencyName ?? "대리점 정보 없음"} />
+        <Info label="택배사/지역" value={formatProposalAgencyArea(proposal)} />
+        <Info label="제안 단가" value={formatCurrency(proposal.unitPrice)} />
+        <Info label="픽업 시간" value={formatProposalPickupTime(proposal)} />
+        <Info label="온도 관리" value={formatColdChainType(proposal.coldChainType)} />
+        <Info label="상태" value={formatProposalStatus(proposal.status)} />
+      </div>
       {proposal.memo ? (
-        <div className="lg:col-span-5">
-          <Info label="제안 메모" value={proposal.memo} />
-        </div>
+        <Info label="제안 메모" value={proposal.memo} />
       ) : null}
+      <div className="flex justify-end">
+        <button
+          className="h-10 rounded-md bg-[#071f46] px-4 text-sm font-bold text-white transition hover:bg-[#0a2d63] disabled:cursor-not-allowed disabled:bg-slate-400"
+          disabled={!acceptEnabled || isAccepting}
+          onClick={() => onAccept(proposal)}
+          type="button"
+        >
+          {isAccepting ? "수락 중" : "제안 수락"}
+        </button>
+      </div>
     </article>
   );
 }
@@ -1280,7 +1360,7 @@ function formatProposalPickupTime(proposal: VendorProposalItem): string {
 
 function formatProposalAgencyArea(proposal: VendorProposalItem): string {
   if (!proposal.agency) {
-    return proposal.agencyId;
+    return "-";
   }
 
   return `${proposal.agency.carrier} / ${proposal.agency.mainRegion}`;

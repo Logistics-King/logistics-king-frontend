@@ -212,6 +212,13 @@ export function getVendorContractRequestProposals(
   );
 }
 
+export function acceptVendorProposal(proposalId: string): Promise<VendorContractItem> {
+  return apiFetch(`/api/v1/proposals/${proposalId}/accept`, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
 export function createVendorContractRequest(
   request: VendorContractRequestPayload,
 ): Promise<VendorContractRequestDetail> {

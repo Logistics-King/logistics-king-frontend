@@ -36,13 +36,13 @@ export function AppShell({
     const timeoutId = window.setTimeout(() => {
       const storedRole = window.localStorage.getItem("logisticsKingRole");
 
-      if (isUserRole(storedRole)) {
+      if (isUserRole(storedRole) && canUseStoredRoleForPage(storedRole, role)) {
         setAuthenticatedRole(storedRole);
       }
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, []);
+  }, [role]);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950 lg:flex">
@@ -184,6 +184,7 @@ function TopNavigation({ role }: { role: UserRole }) {
           {notificationsOpen ? (
             <NotificationPanel
               onClose={() => setNotificationsOpen(false)}
+              role={role}
               onUnreadCountChange={setUnreadCount}
             />
           ) : null}
@@ -199,9 +200,11 @@ function TopNavigation({ role }: { role: UserRole }) {
 function NotificationPanel({
   onClose,
   onUnreadCountChange,
+  role,
 }: {
   onClose: () => void;
   onUnreadCountChange: Dispatch<SetStateAction<number>>;
+  role: UserRole;
 }) {
   const router = useRouter();
   const [items, setItems] = useState<NotificationItem[]>([]);
@@ -275,11 +278,8 @@ function NotificationPanel({
         onUnreadCountChange((currentCount) => Math.max(currentCount - 1, 0));
       }
 
-      if (item.linkUrl) {
-        // 백엔드가 내려준 linkUrl이 있으면 알림 클릭 시 해당 화면으로 이동합니다.
-        router.push(item.linkUrl);
-        onClose();
-      }
+      router.push(getNotificationTargetPath(item, role));
+      onClose();
     } catch {
       setErrorMessage("알림을 읽음 처리하지 못했습니다.");
     }
@@ -495,8 +495,82 @@ function formatNotificationTime(value: string | null): string {
   }).format(date);
 }
 
+function getNotificationTargetPath(item: NotificationItem, role: UserRole): string {
+  const mappedPath = mapBackendLinkToFrontendPath(item.linkUrl, role);
+
+  if (mappedPath) {
+    return mappedPath;
+  }
+
+  if (item.referenceType === "PROPOSAL") {
+    return role === "AGENCY" ? "/agency/proposals" : "/vendor/contract-requests";
+  }
+
+  if (item.referenceType === "CONTRACT") {
+    return role === "AGENCY" ? "/agency/contracts" : "/vendor/contracts";
+  }
+
+  if (item.referenceType === "DELIVER_CONTRACT") {
+    return role === "DRIVER" ? "/driver/deliver-contracts" : "/agency/deliver-contracts";
+  }
+
+  if (item.referenceType === "CONTRACT_REQUEST") {
+    if (role === "AGENCY") {
+      return "/agency/open-requests";
+    }
+
+    return item.referenceId
+      ? `/vendor/contract-requests?selected=${encodeURIComponent(item.referenceId)}`
+      : "/vendor/contract-requests";
+  }
+
+  return roleHomePathMap[role];
+}
+
+function mapBackendLinkToFrontendPath(linkUrl: string | null, role: UserRole): string | null {
+  if (!linkUrl) {
+    return null;
+  }
+
+  if (linkUrl.startsWith("/vendor/") || linkUrl.startsWith("/agency/") || linkUrl.startsWith("/driver/")) {
+    return linkUrl;
+  }
+
+  const contractRequestMatch = linkUrl.match(/^\/contract-requests\/([^/]+)/);
+
+  if (contractRequestMatch) {
+    if (role === "AGENCY") {
+      return "/agency/open-requests";
+    }
+
+    return `/vendor/contract-requests?selected=${encodeURIComponent(contractRequestMatch[1])}`;
+  }
+
+  if (linkUrl.startsWith("/proposals")) {
+    return role === "AGENCY" ? "/agency/proposals" : "/vendor/contract-requests";
+  }
+
+  if (linkUrl.startsWith("/contracts/vendor")) {
+    return "/vendor/contracts";
+  }
+
+  if (linkUrl.startsWith("/contracts/agency")) {
+    return "/agency/contracts";
+  }
+
+  if (linkUrl.startsWith("/deliver-contracts")) {
+    return role === "DRIVER" ? "/driver/deliver-contracts" : "/agency/deliver-contracts";
+  }
+
+  return null;
+}
+
 function isUserRole(value: string | null): value is UserRole {
   return value === "ADMIN" || value === "VENDOR" || value === "AGENCY" || value === "DRIVER";
+}
+
+function canUseStoredRoleForPage(storedRole: UserRole, pageRole: UserRole): boolean {
+  return storedRole === "ADMIN" || storedRole === pageRole;
 }
 
 const roleLabelMap: Record<UserRole, string> = {
