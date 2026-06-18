@@ -26,21 +26,23 @@
 ![로그인 화면](docs/screenshots/login.png)
 ![회원가입 화면](docs/screenshots/signup.png)
 ![계정 찾기 화면](docs/screenshots/account-recovery.png)
-
-추가 캡처 예정:
-
-- `docs/screenshots/notifications.png`
+![알림 화면](docs/screenshots/notifications.png)
 
 ## 화주 사용법
 
 화주는 상품을 보내는 사업자입니다. 배송 품목을 등록하고, 대리점에 계약 요청을 보내는 역할입니다.
+
+아래 화주 화면 캡처는 `vendor01` 계정으로 로그인해서 찍었습니다.
+현재 로컬 데이터 기준으로 `vendor01`은 화주 프로필이 아직 없어서, 일부 화면에는 “화주 정보 등록이 먼저 필요합니다.” 안내가 같이 표시됩니다.
+
+![화주 홈 화면](docs/screenshots/vendor-home.png)
 
 ### 1. 화주 정보 등록
 
 처음 로그인하면 상호명, 대표자명, 연락처, 사업장 주소, 주 발송 지역을 등록합니다.
 이미 등록된 프로필이 있으면 기존 프로필을 조회하고 수정할 수 있습니다.
 
-스크린샷 파일: `docs/screenshots/vendor-profile.png`
+![화주 정보 화면](docs/screenshots/vendor-profile.png)
 
 ### 2. 배송 품목 등록
 
@@ -58,14 +60,14 @@
 - 파손 주의, 액체 포함, 신선식품 여부
 - 온도 관리: 일반, 냉장, 냉동
 
-스크린샷 파일: `docs/screenshots/vendor-product-create.png`
+![배송 품목 등록 화면](docs/screenshots/vendor-product-create.png)
 
 ### 3. 배송 품목 조회
 
 `화주 > 배송 품목 조회`에서 등록된 배송 품목을 검색하고 수정합니다.
 품목명, 카테고리, 박스 크기, 온도 관리 조건으로 필터링할 수 있습니다.
 
-스크린샷 파일: `docs/screenshots/vendor-products.png`
+![배송 품목 조회 화면](docs/screenshots/vendor-products.png)
 
 ### 4. 계약 요청 등록
 
@@ -81,7 +83,7 @@
 계약 요청 등록 시 본인 화주 프로필의 주 발송 지역과 주소가 기본값으로 적용됩니다.
 품목명 입력에서는 이미 등록한 배송 품목 템플릿을 선택할 수 있습니다.
 
-스크린샷 파일: `docs/screenshots/vendor-contract-request-create.png`
+![계약 요청 등록 화면](docs/screenshots/vendor-contract-request-create.png)
 
 ### 5. 계약 요청 조회와 제안 확인
 
@@ -96,11 +98,17 @@
 
 목록에서 계약 요청을 클릭하면 상세 정보와 대리점 제안 목록을 확인할 수 있습니다.
 
-스크린샷 파일: `docs/screenshots/vendor-contract-request-detail.png`
+![계약 요청 조회 화면](docs/screenshots/vendor-contract-requests.png)
+
+![계약 요청 상세 화면](docs/screenshots/vendor-contract-request-detail.png)
 
 ## 대리점 사용법
 
 대리점은 화주가 등록한 공개 계약 요청을 조회하고, 가능한 조건으로 제안을 보내는 역할입니다.
+
+아래 대리점 화면 캡처는 `agency01` 계정으로 로그인해서 찍었습니다.
+
+![대리점 홈 화면](docs/screenshots/agency-home.png)
 
 ### 1. 대리점 정보 등록
 
@@ -113,7 +121,7 @@
 - 냉장
 - 냉동
 
-스크린샷 파일: `docs/screenshots/agency-profile.png`
+![대리점 정보 화면](docs/screenshots/agency-profile.png)
 
 ### 2. 일감 조회
 
@@ -122,7 +130,7 @@
 
 현재 목적지 정보는 백엔드 응답에 목적지 필드가 추가되면 화면에 연결할 예정입니다.
 
-스크린샷 파일: `docs/screenshots/agency-open-requests.png`
+![대리점 일감 조회 화면](docs/screenshots/agency-open-requests.png)
 
 ### 3. 제안 등록
 
@@ -139,7 +147,14 @@
 
 제안 등록 후 화주는 계약 요청 상세 화면에서 제안을 확인합니다.
 
-스크린샷 파일: `docs/screenshots/agency-proposal-create.png`
+![대리점 제안 등록 화면](docs/screenshots/agency-proposal-create.png)
+
+### 4. 내 제안 관리
+
+`대리점 > 내 제안`에서 내가 제출한 제안을 조회하고 관리합니다.
+제출 상태의 제안은 단가와 조건을 수정하거나 철회할 수 있습니다.
+
+![대리점 내 제안 화면](docs/screenshots/agency-proposals.png)
 
 ## 배송기사 사용법
 
