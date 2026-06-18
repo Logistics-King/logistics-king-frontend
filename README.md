@@ -35,12 +35,17 @@
 
 화주는 상품을 보내는 사업자입니다. 배송 품목을 등록하고, 대리점에 계약 요청을 보내는 역할입니다.
 
+아래 화주 화면 캡처는 `vendor01` 계정 기준 화면입니다.
+현재 로컬 백엔드 DB가 연결되지 않으면 일부 화면에는 API 연결 실패 안내가 같이 보일 수 있습니다.
+
+![화주 홈 화면](docs/screenshots/vendor-home.png)
+
 ### 1. 화주 정보 등록
 
 처음 로그인하면 상호명, 대표자명, 연락처, 사업장 주소, 주 발송 지역을 등록합니다.
 이미 등록된 프로필이 있으면 기존 프로필을 조회하고 수정할 수 있습니다.
 
-스크린샷 파일: `docs/screenshots/vendor-profile.png`
+![화주 정보 화면](docs/screenshots/vendor-profile.png)
 
 ### 2. 배송 품목 등록
 
@@ -58,14 +63,14 @@
 - 파손 주의, 액체 포함, 신선식품 여부
 - 온도 관리: 일반, 냉장, 냉동
 
-스크린샷 파일: `docs/screenshots/vendor-product-create.png`
+![배송 품목 등록 화면](docs/screenshots/vendor-product-create.png)
 
 ### 3. 배송 품목 조회
 
 `화주 > 배송 품목 조회`에서 등록된 배송 품목을 검색하고 수정합니다.
 품목명, 카테고리, 박스 크기, 온도 관리 조건으로 필터링할 수 있습니다.
 
-스크린샷 파일: `docs/screenshots/vendor-products.png`
+![배송 품목 조회 화면](docs/screenshots/vendor-products.png)
 
 ### 4. 계약 요청 등록
 
@@ -81,7 +86,7 @@
 계약 요청 등록 시 본인 화주 프로필의 주 발송 지역과 주소가 기본값으로 적용됩니다.
 품목명 입력에서는 이미 등록한 배송 품목 템플릿을 선택할 수 있습니다.
 
-스크린샷 파일: `docs/screenshots/vendor-contract-request-create.png`
+![계약 요청 등록 화면](docs/screenshots/vendor-contract-request-create.png)
 
 ### 5. 계약 요청 조회와 제안 확인
 
@@ -96,7 +101,9 @@
 
 목록에서 계약 요청을 클릭하면 상세 정보와 대리점 제안 목록을 확인할 수 있습니다.
 
-스크린샷 파일: `docs/screenshots/vendor-contract-request-detail.png`
+![계약 요청 조회 화면](docs/screenshots/vendor-contract-requests.png)
+
+![화주 계약 화면](docs/screenshots/vendor-contracts.png)
 
 ## 대리점 사용법
 
