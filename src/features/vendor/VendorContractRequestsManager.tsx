@@ -1,17 +1,21 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/src/shared/api/client";
 import type { BoxSize, ColdChainType, PageResponse, ProductCategory } from "@/src/shared/api/types";
 import { getVendorProfile, type VendorProfile } from "@/src/features/profile/api";
 import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
 import {
+  cancelVendorContractRequest,
   createVendorContractRequest,
   getVendorAgencies,
   getVendorContractRequestDetail,
   getVendorContractRequestProposals,
   getVendorContractRequests,
   getVendorProducts,
+  updateVendorContractRequest,
   type VendorAgencySummary,
   type VendorContractRequestDetail,
   type VendorContractRequestLine,
@@ -102,7 +106,22 @@ const coldChainOptions: Array<{ value: ColdChainType; label: string }> = [
   { value: "FROZEN", label: "냉동" },
 ];
 
-export function VendorContractRequestsManager() {
+export function VendorContractRequestCreateView() {
+  return <VendorContractRequestsManager mode="create" />;
+}
+
+export function VendorContractRequestListView() {
+  return <VendorContractRequestsManager mode="list" />;
+}
+
+export function VendorContractRequestsManager({
+  mode = "create",
+}: {
+  mode?: "create" | "list";
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editContractRequestId = mode === "create" ? searchParams.get("edit") : null;
   const [page, setPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
   const [form, setForm] = useState<ContractRequestFormState>(initialFormState);
@@ -120,6 +139,8 @@ export function VendorContractRequestsManager() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const isCreateMode = mode === "create";
 
   const totalBoxQuantity = useMemo(
     () => form.items.reduce((sum, item) => sum + toRequiredQuantity(item.boxQuantity), 0),
@@ -139,26 +160,42 @@ export function VendorContractRequestsManager() {
       setNeedsVendorProfile(false);
 
       try {
-        const [profile, agencyPage, productPage, requestPage] = await Promise.all([
-          getVendorProfile(),
-          getVendorAgencies({ page: 0, size: 100 }),
-          getVendorProducts({ page: 0, size: 100 }),
-          getVendorContractRequests({ page, size: pageSize }),
-        ]);
+        if (isCreateMode) {
+          const [profile, agencyPage, productPage, editDetail] = await Promise.all([
+            getVendorProfile(),
+            getVendorAgencies({ page: 0, size: 100 }),
+            getVendorProducts({ page: 0, size: 100 }),
+            editContractRequestId
+              ? getVendorContractRequestDetail(editContractRequestId)
+              : Promise.resolve(null),
+          ]);
 
-        if (active) {
-          setAgencies(agencyPage.items);
-          setProductTemplates(productPage.items);
-          setPageResponse(requestPage);
-          setForm((current) =>
-            hasPickupDefaults(current)
-              ? current
-              : {
-                  ...current,
-                  pickupRegion: profile.mainRegion,
-                  pickupAddress: formatProfileAddress(profile),
-                },
-          );
+          if (active) {
+            setAgencies(agencyPage.items);
+            setProductTemplates(productPage.items);
+            setPageResponse(null);
+            setForm((current) => {
+              if (editDetail) {
+                return toFormStateFromDetail(editDetail);
+              }
+
+              return hasPickupDefaults(current)
+                ? current
+                : {
+                    ...current,
+                    pickupRegion: profile.mainRegion,
+                    pickupAddress: formatProfileAddress(profile),
+                  };
+            });
+          }
+        } else {
+          const requestPage = await getVendorContractRequests({ page, size: pageSize });
+
+          if (active) {
+            setPageResponse(requestPage);
+            setAgencies([]);
+            setProductTemplates([]);
+          }
         }
       } catch (error) {
         if (active) {
@@ -178,7 +215,7 @@ export function VendorContractRequestsManager() {
     return () => {
       active = false;
     };
-  }, [page, reloadKey]);
+  }, [editContractRequestId, isCreateMode, page, reloadKey]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -196,11 +233,18 @@ export function VendorContractRequestsManager() {
     setIsSubmitting(true);
 
     try {
-      await createVendorContractRequest(toRequestPayload(form));
-      setSuccessMessage("계약 요청을 등록했습니다.");
+      if (editContractRequestId) {
+        await updateVendorContractRequest(editContractRequestId, toRequestPayload(form));
+        setSuccessMessage("계약 요청을 수정했습니다.");
+      } else {
+        await createVendorContractRequest(toRequestPayload(form));
+        setSuccessMessage("계약 요청을 등록했습니다.");
+      }
+
       setForm(initialFormState);
       setPage(0);
       setReloadKey((current) => current + 1);
+      router.push("/vendor/contract-requests");
     } catch (error) {
       setNeedsVendorProfile(isVendorProfileMissing(error));
       setErrorMessage(getErrorMessage(error));
@@ -261,12 +305,40 @@ export function VendorContractRequestsManager() {
     setDetailErrorMessage("");
   }
 
+  function handleEditRequest(contractRequestId: string) {
+    router.push(`/vendor/contract-requests/new?edit=${contractRequestId}`);
+  }
+
+  async function handleCancelRequest(contractRequestId: string) {
+    if (!window.confirm("계약 요청을 삭제할까요? 실제로는 요청이 취소 상태로 변경됩니다.")) {
+      return;
+    }
+
+    setIsCanceling(true);
+    setDetailErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await cancelVendorContractRequest(contractRequestId);
+      closeDetailPanel();
+      setSuccessMessage("계약 요청을 삭제했습니다.");
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setDetailErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsCanceling(false);
+    }
+  }
+
   return (
     <section className="grid gap-5">
+      {isCreateMode ? (
       <form className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" onSubmit={handleSubmit}>
         <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-950">계약 요청 등록</h2>
+            <h2 className="text-xl font-bold text-slate-950">
+              {editContractRequestId ? "계약 요청 수정" : "계약 요청 등록"}
+            </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               여러 배송 물품 라인을 묶어서 한 번에 대리점에 계약 요청합니다.
             </p>
@@ -401,26 +473,59 @@ export function VendorContractRequestsManager() {
             disabled={isSubmitting}
             type="submit"
           >
-            {isSubmitting ? "등록 중" : "계약 요청 등록"}
+            {isSubmitting
+              ? editContractRequestId
+                ? "수정 중"
+                : "등록 중"
+              : editContractRequestId
+                ? "계약 요청 수정"
+                : "계약 요청 등록"}
           </button>
         </div>
       </form>
+      ) : (
+        <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-950">계약 요청 조회</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              등록한 계약 요청을 확인하고 진행중인 요청을 수정하거나 삭제합니다.
+            </p>
+          </div>
+          <Link
+            className="inline-flex h-11 items-center justify-center rounded-md bg-[#071f46] px-5 text-sm font-bold text-white transition hover:bg-[#0a2d63]"
+            href="/vendor/contract-requests/new"
+          >
+            계약 요청 등록
+          </Link>
+        </div>
+      )}
 
       {needsVendorProfile ? <ProfileRequiredNotice role="VENDOR" /> : null}
 
-      <ContractRequestList
-        isLoading={isLoading}
-        onSelect={handleSelectRequest}
-        page={page}
-        pageResponse={pageResponse}
-        setPage={setPage}
-      />
+      {!isCreateMode && successMessage ? (
+        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+          {successMessage}
+        </p>
+      ) : null}
+
+      {!isCreateMode ? (
+        <ContractRequestList
+          isLoading={isLoading}
+          onSelect={handleSelectRequest}
+          page={page}
+          pageResponse={pageResponse}
+          setPage={setPage}
+        />
+      ) : null}
 
       {selectedRequest || isDetailLoading || detailErrorMessage ? (
         <ContractRequestDetailPanel
           errorMessage={detailErrorMessage}
           isLoading={isDetailLoading}
+          isCanceling={isCanceling}
+          onCancel={handleCancelRequest}
           onClose={closeDetailPanel}
+          onEdit={handleEditRequest}
           proposals={selectedRequestProposals}
           request={selectedRequest}
         />
@@ -685,17 +790,35 @@ function ContractRequestList({
 
 function ContractRequestDetailPanel({
   errorMessage,
+  isCanceling,
   isLoading,
+  onCancel,
   onClose,
+  onEdit,
   proposals,
   request,
 }: {
   errorMessage: string;
+  isCanceling: boolean;
   isLoading: boolean;
+  onCancel: (contractRequestId: string) => void;
   onClose: () => void;
+  onEdit: (contractRequestId: string) => void;
   proposals: PageResponse<VendorProposalItem> | null;
   request: VendorContractRequestDetail | null;
 }) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-slate-950/45 px-4 py-6">
       <section className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-xl">
@@ -704,13 +827,34 @@ function ContractRequestDetailPanel({
             <p className="text-xs font-bold text-slate-400">계약 요청</p>
             <h2 className="mt-1 text-xl font-bold text-slate-950">상세와 대리점 제안</h2>
           </div>
-          <button
-            className="h-10 rounded-md border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:border-slate-500"
-            onClick={onClose}
-            type="button"
-          >
-            닫기
-          </button>
+          <div className="flex items-center gap-2">
+            {request?.status === "OPEN" ? (
+              <>
+                <button
+                  className="h-10 rounded-md border border-[#071f46] px-4 text-sm font-bold text-[#071f46] transition hover:bg-[#071f46]/5"
+                  onClick={() => onEdit(request.contractRequestId)}
+                  type="button"
+                >
+                  수정
+                </button>
+                <button
+                  className="h-10 rounded-md border border-red-300 px-4 text-sm font-bold text-red-600 transition hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isCanceling}
+                  onClick={() => onCancel(request.contractRequestId)}
+                  type="button"
+                >
+                  {isCanceling ? "삭제 중" : "삭제"}
+                </button>
+              </>
+            ) : null}
+            <button
+              className="h-10 rounded-md border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:border-slate-500"
+              onClick={onClose}
+              type="button"
+            >
+              닫기
+            </button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -941,6 +1085,36 @@ function toRequestLine(item: ContractRequestLineFormState): VendorContractReques
     freshFood: item.freshFood,
     coldChainType: item.coldChainType,
     targetUnitPrice: numberToNullable(item.targetUnitPrice),
+  };
+}
+
+function toFormStateFromDetail(detail: VendorContractRequestDetail): ContractRequestFormState {
+  return {
+    approverId: detail.approverId ?? "",
+    pickupRegion: detail.pickupRegion,
+    pickupAddress: detail.pickupAddress,
+    pickupStartTime: detail.pickupStartTime ?? "",
+    pickupEndTime: detail.pickupEndTime ?? "",
+    saturdayDeliveryRequired: detail.saturdayDeliveryRequired,
+    returnRequired: detail.returnRequired,
+    memo: detail.memo ?? "",
+    items:
+      detail.items.length > 0
+        ? detail.items.map((item) => ({
+            productId: item.productId,
+            productName: item.productName,
+            productCategory: item.productCategory,
+            boxSize: item.boxSize,
+            boxQuantity: String(item.boxQuantity),
+            itemQuantity: String(item.itemQuantity),
+            averageWeightGram: nullableToString(item.averageWeightGram),
+            fragile: item.fragile,
+            liquid: item.liquid,
+            freshFood: item.freshFood,
+            coldChainType: item.coldChainType,
+            targetUnitPrice: nullableToString(item.targetUnitPrice),
+          }))
+        : [initialLineState],
   };
 }
 

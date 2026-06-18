@@ -91,7 +91,7 @@ function DesktopSidebar({ role, menuItems }: { role: UserRole; menuItems: MenuIt
             <p className={groupLabelClassName}>{group}</p>
             <div className="mt-2 grid gap-1">
               {items.map((item) => (
-                <NavigationLink item={item} key={item.href} />
+                <NavigationItem item={item} key={item.href} />
               ))}
             </div>
           </div>
@@ -351,7 +351,7 @@ function NotificationPanel({
 
 function MobileBottomNav({ menuItems }: { menuItems: MenuItem[] }) {
   const pathname = usePathname();
-  const primaryItems = menuItems.slice(0, 5);
+  const primaryItems = flattenMenuItems(menuItems).slice(0, 5);
 
   // 모바일에서는 사이드바 대신 하단 탭 메뉴를 씁니다.
   return (
@@ -382,14 +382,47 @@ function MobileBottomNav({ menuItems }: { menuItems: MenuItem[] }) {
   );
 }
 
-function NavigationLink({ item }: { item: MenuItem }) {
+function NavigationItem({ item }: { item: MenuItem }) {
+  const pathname = usePathname();
+  const children = item.children ?? [];
+
+  if (children.length === 0) {
+    return <NavigationLink item={item} />;
+  }
+
+  const active = children.some((child) => isActive(pathname, child.href));
+  const Icon = item.icon;
+
+  return (
+    <div className="grid gap-1">
+      <Link
+        className={`flex h-10 items-center gap-3 rounded-md px-3 text-sm font-bold transition ${
+          active
+            ? "bg-[#071f46] text-white"
+            : "bg-[#071f46]/90 text-white hover:bg-[#071f46]"
+        }`}
+        href={item.href}
+      >
+        <Icon className="h-5 w-5" />
+        <span>{item.label}</span>
+      </Link>
+      <div className="ml-5 grid gap-1 border-l border-slate-200 pl-3">
+        {children.map((child) => (
+          <NavigationLink item={child} key={child.href} nested />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NavigationLink({ item, nested = false }: { item: MenuItem; nested?: boolean }) {
   const pathname = usePathname();
   const active = isActive(pathname, item.href);
   const Icon = item.icon;
 
   return (
     <Link
-      className={`flex h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold transition ${
+      className={`flex ${nested ? "h-9" : "h-11"} items-center gap-3 rounded-md px-3 text-sm font-semibold transition ${
         active
           ? "bg-[#071f46]/10 text-[#071f46]"
           : "text-slate-600 hover:bg-[#071f46]/5 hover:text-[#071f46]"
@@ -400,6 +433,10 @@ function NavigationLink({ item }: { item: MenuItem }) {
       <span>{item.label}</span>
     </Link>
   );
+}
+
+function flattenMenuItems(menuItems: MenuItem[]): MenuItem[] {
+  return menuItems.flatMap((item) => (item.children && item.children.length > 0 ? item.children : item));
 }
 
 function groupMenuItems(menuItems: MenuItem[]): Array<[MenuItem["group"], MenuItem[]]> {
@@ -422,7 +459,8 @@ function isActive(pathname: string, href: string): boolean {
     href === "/agency" ||
     href === "/driver" ||
     href === "/admin" ||
-    href === "/vendor/products"
+    href === "/vendor/products" ||
+    href === "/vendor/contract-requests"
   ) {
     return pathname === href;
   }

@@ -234,6 +234,15 @@ export function updateVendorContractRequest(
   });
 }
 
+export function cancelVendorContractRequest(
+  contractRequestId: string,
+): Promise<VendorContractRequestDetail> {
+  return apiFetch(`/api/v1/contract-requests/${contractRequestId}/cancel`, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
 export function getVendorContracts({
   page = 0,
   size = 20,
