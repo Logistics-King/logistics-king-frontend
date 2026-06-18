@@ -202,7 +202,21 @@ function formatValue(value: unknown): string {
 }
 
 function formatStatus(value: unknown): string {
-  return value ? `상태 ${String(value)}` : "상태 정보 없음";
+  const labels: Record<string, string> = {
+    OPEN: "진행중",
+    CANCELED: "취소됨",
+    REJECTED: "거절됨",
+    CONTRACTED: "계약 완료",
+    SUBMITTED: "제안 제출",
+    WITHDRAWN: "철회됨",
+    ACCEPTED: "수락됨",
+  };
+
+  if (!value) {
+    return "상태 정보 없음";
+  }
+
+  return labels[String(value)] ?? `상태 ${String(value)}`;
 }
 
 function getItemKey(item: Record<string, unknown>, index: number): string {

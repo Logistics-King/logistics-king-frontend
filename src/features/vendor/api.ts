@@ -6,6 +6,7 @@ import type {
   PageResponse,
   ProductCategory,
 } from "@/src/shared/api/types";
+import type { ContractListItem } from "@/src/features/contracts/types";
 
 export type ListQuery = {
   page?: number;
@@ -56,7 +57,7 @@ export type VendorProductItem = VendorProductRequest & {
 };
 
 export type VendorContractRequestItem = Record<string, unknown>;
-export type VendorContractItem = Record<string, unknown>;
+export type VendorContractItem = ContractListItem;
 
 export type ContractRequestType = "VENDOR_OFFER" | "AGENCY_OFFER";
 
@@ -120,6 +121,7 @@ export type VendorProposalItem = {
   contractRequestId: string;
   vendorId: string;
   agencyId: string;
+  agency: VendorAgencySummary | null;
   unitPrice: number;
   pickupStartTime: string | null;
   pickupEndTime: string | null;
@@ -247,7 +249,9 @@ export function getVendorContracts({
   page = 0,
   size = 20,
 }: ListQuery = {}): Promise<PageResponse<VendorContractItem>> {
-  return apiFetch(`/api/v1/contracts/vendor/me${toPageQuery(page, size)}`);
+  return apiFetch(`/api/v1/contracts/vendor/me${toPageQuery(page, size)}`, {
+    credentials: "include",
+  });
 }
 
 export function getVendorAgencies({

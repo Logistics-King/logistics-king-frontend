@@ -161,18 +161,26 @@ export function VendorContractRequestsManager({
 
       try {
         if (isCreateMode) {
-          const [profile, agencyPage, productPage, editDetail] = await Promise.all([
+          const [profile, agencyPage, productPage, requestPage, editDetail] = await Promise.all([
             getVendorProfile(),
             getVendorAgencies({ page: 0, size: 100 }),
             getVendorProducts({ page: 0, size: 100 }),
+            getVendorContractRequests({ page: 0, size: 1000 }),
             editContractRequestId
               ? getVendorContractRequestDetail(editContractRequestId)
               : Promise.resolve(null),
           ]);
 
           if (active) {
+            const lockedProductIds = getLockedProductIds(
+              requestPage.items,
+              editContractRequestId,
+            );
+
             setAgencies(agencyPage.items);
-            setProductTemplates(productPage.items);
+            setProductTemplates(
+              productPage.items.filter((product) => !lockedProductIds.has(product.productId)),
+            );
             setPageResponse(null);
             setForm((current) => {
               if (editDetail) {
@@ -951,11 +959,12 @@ function LineReadOnlyCard({ item }: { item: VendorContractRequestLine }) {
 function ProposalCard({ proposal }: { proposal: VendorProposalItem }) {
   return (
     <article className="grid gap-4 px-4 py-4 lg:grid-cols-5">
-      <Info label="대리점 ID" value={proposal.agencyId} />
+      <Info label="대리점" value={proposal.agency?.agencyName ?? proposal.agencyId} />
+      <Info label="택배사/지역" value={formatProposalAgencyArea(proposal)} />
       <Info label="제안 단가" value={formatCurrency(proposal.unitPrice)} />
       <Info label="픽업 시간" value={formatProposalPickupTime(proposal)} />
       <Info label="온도 관리" value={formatColdChainType(proposal.coldChainType)} />
-      <Info label="상태" value={proposal.status} />
+      <Info label="상태" value={formatProposalStatus(proposal.status)} />
       {proposal.memo ? (
         <div className="lg:col-span-5">
           <Info label="제안 메모" value={proposal.memo} />
@@ -1118,6 +1127,34 @@ function toFormStateFromDetail(detail: VendorContractRequestDetail): ContractReq
   };
 }
 
+function getLockedProductIds(
+  contractRequests: VendorContractRequestDetail[],
+  currentContractRequestId: string | null,
+): Set<string> {
+  const productIds = new Set<string>();
+
+  for (const contractRequest of contractRequests) {
+    if (
+      contractRequest.contractRequestId === currentContractRequestId ||
+      contractRequest.status === "CANCELED"
+    ) {
+      continue;
+    }
+
+    if (contractRequest.productId) {
+      productIds.add(contractRequest.productId);
+    }
+
+    for (const item of contractRequest.items) {
+      if (item.productId) {
+        productIds.add(item.productId);
+      }
+    }
+  }
+
+  return productIds;
+}
+
 function applyProductTemplate(
   current: ContractRequestLineFormState,
   product: VendorProductItem,
@@ -1193,6 +1230,17 @@ function formatStatus(status: VendorContractRequestDetail["status"]): string {
   return labels[status];
 }
 
+function formatProposalStatus(status: VendorProposalItem["status"]): string {
+  const labels: Record<string, string> = {
+    SUBMITTED: "제안 제출",
+    WITHDRAWN: "철회됨",
+    ACCEPTED: "수락됨",
+    REJECTED: "거절됨",
+  };
+
+  return labels[status] ?? status;
+}
+
 function formatBoxSize(value: BoxSize): string {
   return boxSizeOptions.find((option) => option.value === value)?.label ?? value;
 }
@@ -1228,6 +1276,14 @@ function formatProposalPickupTime(proposal: VendorProposalItem): string {
   }
 
   return `${proposal.pickupStartTime ?? "-"} ~ ${proposal.pickupEndTime ?? "-"}`;
+}
+
+function formatProposalAgencyArea(proposal: VendorProposalItem): string {
+  if (!proposal.agency) {
+    return proposal.agencyId;
+  }
+
+  return `${proposal.agency.carrier} / ${proposal.agency.mainRegion}`;
 }
 
 function getErrorMessage(error: unknown): string {

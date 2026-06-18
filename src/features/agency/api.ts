@@ -1,10 +1,12 @@
 import { apiFetch } from "@/src/shared/api/client";
 import type {
   BoxSize,
+  Carrier,
   ColdChainType,
   PageResponse,
   ProductCategory,
 } from "@/src/shared/api/types";
+import type { ContractListItem } from "@/src/features/contracts/types";
 
 export type ContractRequestType = "VENDOR_OFFER" | "AGENCY_OFFER";
 
@@ -65,12 +67,44 @@ export type AgencyProposalRequest = {
   memo: string | null;
 };
 
+export type AgencySummary = {
+  agencyId: string;
+  carrier: Carrier;
+  agencyName: string;
+  mainRegion: string;
+  serviceRegions: string[];
+  weekdayPickupStartTime: string | null;
+  weekdayPickupEndTime: string | null;
+  saturdayPickupAvailable: boolean;
+  saturdayDeliveryAvailable: boolean;
+  returnAvailable: boolean;
+  supportedColdChainTypes: ColdChainType[];
+  maxMonthlyVolume: number | null;
+};
+
+export type AgencyVendorSummary = {
+  vendorId: string;
+  userId: string;
+  businessName: string;
+  businessRegistrationNumber: string | null;
+  representativeName: string;
+  phoneNumber: string;
+  postalCode: string | null;
+  address: string;
+  addressDetail: string | null;
+  mainRegion: string;
+};
+
+export type AgencyProposalStatus = "SUBMITTED" | "WITHDRAWN" | "ACCEPTED" | "REJECTED" | string;
+
 export type AgencyProposalItem = AgencyProposalRequest & {
   proposalId: string;
   contractRequestId: string;
   vendorId: string;
   agencyId: string;
-  status: string;
+  status: AgencyProposalStatus;
+  agency: AgencySummary | null;
+  vendor: AgencyVendorSummary | null;
 };
 
 export function getAgencyOpenContractRequests({
@@ -96,5 +130,57 @@ export function submitAgencyProposal(
     method: "POST",
     credentials: "include",
     body: JSON.stringify(request),
+  });
+}
+
+export function getAgencyProposals({
+  page = 0,
+  size = 20,
+}: {
+  page?: number;
+  size?: number;
+} = {}): Promise<PageResponse<AgencyProposalItem>> {
+  const searchParams = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+  });
+
+  return apiFetch(`/api/v1/proposals/me?${searchParams.toString()}`, {
+    credentials: "include",
+  });
+}
+
+export function updateAgencyProposal(
+  proposalId: string,
+  request: AgencyProposalRequest,
+): Promise<AgencyProposalItem> {
+  return apiFetch(`/api/v1/proposals/${proposalId}`, {
+    method: "PUT",
+    credentials: "include",
+    body: JSON.stringify(request),
+  });
+}
+
+export function withdrawAgencyProposal(proposalId: string): Promise<AgencyProposalItem> {
+  return apiFetch(`/api/v1/proposals/${proposalId}/withdraw`, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
+export function getAgencyContracts({
+  page = 0,
+  size = 20,
+}: {
+  page?: number;
+  size?: number;
+} = {}): Promise<PageResponse<ContractListItem>> {
+  const searchParams = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+  });
+
+  return apiFetch(`/api/v1/contracts/agency/me?${searchParams.toString()}`, {
+    credentials: "include",
   });
 }

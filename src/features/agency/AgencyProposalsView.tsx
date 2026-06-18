@@ -1,18 +1,14 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { ApiError } from "@/src/shared/api/client";
-import type { BoxSize, ColdChainType, PageResponse, ProductCategory } from "@/src/shared/api/types";
-import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
+import type { ColdChainType, PageResponse } from "@/src/shared/api/types";
 import {
-  getAgencyOpenContractRequests,
-  submitAgencyProposal,
-  type AgencyContractRequestLineItem,
-  type AgencyOpenContractRequestItem,
+  getAgencyProposals,
+  updateAgencyProposal,
+  withdrawAgencyProposal,
+  type AgencyProposalItem,
   type AgencyProposalRequest,
 } from "./api";
-
-const pageSize = 10;
 
 type ProposalFormState = {
   unitPrice: string;
@@ -24,25 +20,7 @@ type ProposalFormState = {
   memo: string;
 };
 
-const productCategoryLabels: Record<ProductCategory, string> = {
-  CLOTHING: "의류",
-  GENERAL_GOODS: "생활용품",
-  FOOD: "식품",
-  ELECTRONICS: "전자제품",
-  DOCUMENT: "문서",
-  COSMETIC: "화장품",
-  ETC: "기타",
-};
-
-const boxSizeLabels: Record<BoxSize, string> = {
-  SIZE_60: "60사이즈",
-  SIZE_80: "80사이즈",
-  SIZE_100: "100사이즈",
-  SIZE_120: "120사이즈",
-  SIZE_140: "140사이즈",
-  SIZE_160: "160사이즈",
-  CUSTOM: "기타",
-};
+const pageSize = 10;
 
 const coldChainTypeLabels: Record<ColdChainType, string> = {
   NONE: "일반",
@@ -50,39 +28,33 @@ const coldChainTypeLabels: Record<ColdChainType, string> = {
   FROZEN: "냉동",
 };
 
-// 대리점의 "일감 조회" 화면입니다.
-// 일감 기준 API는 GET /api/v1/contract-requests/open 입니다.
-// 배송 물품 상세는 top-level 대표 필드가 아니라 request.items[] 기준으로 렌더링합니다.
-export function AgencyOpenRequestsView() {
+export function AgencyProposalsView() {
   const [page, setPage] = useState(0);
-  const [pageResponse, setPageResponse] =
-    useState<PageResponse<AgencyOpenContractRequestItem> | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [pageResponse, setPageResponse] = useState<PageResponse<AgencyProposalItem> | null>(null);
+  const [editingProposal, setEditingProposal] = useState<AgencyProposalItem | null>(null);
+  const [form, setForm] = useState<ProposalFormState | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [needsAgencyProfile, setNeedsAgencyProfile] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<AgencyOpenContractRequestItem | null>(null);
-  const [proposalForm, setProposalForm] = useState<ProposalFormState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [withdrawingProposalId, setWithdrawingProposalId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    async function fetchOpenRequests() {
+    async function fetchProposals() {
       setIsLoading(true);
       setErrorMessage("");
-      setSuccessMessage("");
-      setNeedsAgencyProfile(false);
 
       try {
-        const response = await getAgencyOpenContractRequests({ page, size: pageSize });
+        const response = await getAgencyProposals({ page, size: pageSize });
 
         if (active) {
           setPageResponse(response);
         }
       } catch (error) {
         if (active) {
-          setNeedsAgencyProfile(isAgencyProfileMissing(error));
           setErrorMessage(getErrorMessage(error));
           setPageResponse(null);
         }
@@ -93,60 +65,73 @@ export function AgencyOpenRequestsView() {
       }
     }
 
-    fetchOpenRequests();
+    fetchProposals();
 
     return () => {
       active = false;
     };
-  }, [page]);
+  }, [page, reloadKey]);
 
-  function openProposalForm(request: AgencyOpenContractRequestItem) {
-    setSelectedRequest(request);
-    setProposalForm({
-      unitPrice: request.targetUnitPrice === null ? "" : String(request.targetUnitPrice),
-      pickupStartTime: request.pickupStartTime ?? "",
-      pickupEndTime: request.pickupEndTime ?? "",
-      saturdayDeliveryAvailable: request.saturdayDeliveryRequired,
-      returnAvailable: request.returnRequired,
-      coldChainType: request.coldChainType,
-      memo: "",
-    });
+  function openEditForm(proposal: AgencyProposalItem) {
+    setEditingProposal(proposal);
+    setForm(toFormState(proposal));
     setErrorMessage("");
     setSuccessMessage("");
   }
 
-  function closeProposalForm() {
-    setSelectedRequest(null);
-    setProposalForm(null);
-    setIsSubmittingProposal(false);
+  function closeEditForm() {
+    setEditingProposal(null);
+    setForm(null);
+    setIsSubmitting(false);
   }
 
-  async function handleSubmitProposal(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!selectedRequest || !proposalForm) {
+    if (!editingProposal || !form) {
       return;
     }
 
-    const unitPrice = Number(normalizeIntegerInput(proposalForm.unitPrice));
+    const unitPrice = Number(normalizeIntegerInput(form.unitPrice));
 
-    if (!unitPrice || unitPrice < 0) {
+    if (!unitPrice || unitPrice < 1) {
       setErrorMessage("제안 단가는 1원 이상 입력해야 합니다.");
       return;
     }
 
-    setIsSubmittingProposal(true);
+    setIsSubmitting(true);
     setErrorMessage("");
     setSuccessMessage("");
 
     try {
-      await submitAgencyProposal(selectedRequest.contractRequestId, toProposalRequest(proposalForm));
-      setSuccessMessage("제안을 등록했습니다.");
-      closeProposalForm();
+      await updateAgencyProposal(editingProposal.proposalId, toProposalRequest(form));
+      closeEditForm();
+      setSuccessMessage("제안을 수정했습니다.");
+      setReloadKey((current) => current + 1);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
-      setIsSubmittingProposal(false);
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleWithdraw(proposal: AgencyProposalItem) {
+    if (!window.confirm("제안을 철회할까요? 철회한 제안은 다시 수정할 수 없습니다.")) {
+      return;
+    }
+
+    setWithdrawingProposalId(proposal.proposalId);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await withdrawAgencyProposal(proposal.proposalId);
+      setSuccessMessage("제안을 철회했습니다.");
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setWithdrawingProposalId(null);
     }
   }
 
@@ -155,9 +140,9 @@ export function AgencyOpenRequestsView() {
       <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-950">일감 조회</h2>
+            <h2 className="text-xl font-bold text-slate-950">내 제안</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              화주가 공개한 계약 요청을 확인하고 배송 물품 라인별 조건을 비교합니다.
+              제출한 제안의 단가와 조건을 확인하고 진행중인 제안을 수정하거나 철회합니다.
             </p>
           </div>
           <p className="rounded-md bg-[#071f46]/10 px-3 py-2 text-sm font-bold text-[#071f46]">
@@ -166,9 +151,7 @@ export function AgencyOpenRequestsView() {
         </div>
       </div>
 
-      {needsAgencyProfile ? <ProfileRequiredNotice role="AGENCY" /> : null}
-
-      {errorMessage && !needsAgencyProfile ? (
+      {errorMessage ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
           {errorMessage}
         </p>
@@ -184,22 +167,24 @@ export function AgencyOpenRequestsView() {
         {isLoading ? (
           <div className="grid gap-3 p-5">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div className="h-32 rounded-md bg-slate-100" key={index} />
+              <div className="h-28 rounded-md bg-slate-100" key={index} />
             ))}
           </div>
         ) : pageResponse && pageResponse.items.length > 0 ? (
           <div className="divide-y divide-slate-100">
-            {pageResponse.items.map((request) => (
-              <ContractRequestCard
-                key={request.contractRequestId}
-                onProposalClick={openProposalForm}
-                request={request}
+            {pageResponse.items.map((proposal) => (
+              <ProposalCard
+                isWithdrawing={withdrawingProposalId === proposal.proposalId}
+                key={proposal.proposalId}
+                onEdit={openEditForm}
+                onWithdraw={handleWithdraw}
+                proposal={proposal}
               />
             ))}
           </div>
         ) : (
           <div className="px-5 py-12 text-center">
-            <p className="text-sm font-semibold text-slate-500">조회 가능한 일감이 없습니다.</p>
+            <p className="text-sm font-semibold text-slate-500">제출한 제안이 없습니다.</p>
           </div>
         )}
 
@@ -229,97 +214,102 @@ export function AgencyOpenRequestsView() {
         </div>
       </div>
 
-      {selectedRequest && proposalForm ? (
-        <ProposalModal
-          form={proposalForm}
-          isSubmitting={isSubmittingProposal}
-          onChange={setProposalForm}
-          onClose={closeProposalForm}
-          onSubmit={handleSubmitProposal}
-          request={selectedRequest}
+      {editingProposal && form ? (
+        <ProposalEditModal
+          form={form}
+          isSubmitting={isSubmitting}
+          onChange={setForm}
+          onClose={closeEditForm}
+          onSubmit={handleSubmit}
+          proposal={editingProposal}
         />
       ) : null}
     </section>
   );
 }
 
-function ContractRequestCard({
-  onProposalClick,
-  request,
+function ProposalCard({
+  isWithdrawing,
+  onEdit,
+  onWithdraw,
+  proposal,
 }: {
-  onProposalClick: (request: AgencyOpenContractRequestItem) => void;
-  request: AgencyOpenContractRequestItem;
+  isWithdrawing: boolean;
+  onEdit: (proposal: AgencyProposalItem) => void;
+  onWithdraw: (proposal: AgencyProposalItem) => void;
+  proposal: AgencyProposalItem;
 }) {
+  const editable = proposal.status === "SUBMITTED";
+
   return (
     <article className="grid gap-4 px-5 py-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-bold text-slate-950">{request.productName}</h3>
-            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
-              {request.pickupRegion}
-            </span>
+            <h3 className="text-lg font-bold text-slate-950">{formatVendorName(proposal)}</h3>
             <span className="rounded-full bg-[#071f46]/10 px-2 py-1 text-xs font-bold text-[#071f46]">
-              {formatContractRequestStatus(request.status)}
+              {formatProposalStatus(proposal.status)}
             </span>
+            {proposal.agency ? (
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
+                {proposal.agency.agencyName}
+              </span>
+            ) : null}
           </div>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{request.pickupAddress}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{formatVendorSummary(proposal)}</p>
         </div>
-        <button
-          className="h-10 rounded-md bg-[#071f46] px-4 text-sm font-bold text-white transition hover:bg-[#0a2d63]"
-          onClick={() => onProposalClick(request)}
-          type="button"
-        >
-          제안 등록
-        </button>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <InfoItem label="집하지" value={request.pickupAddress || request.pickupRegion} />
-        <InfoItem label="목적지" value="목적지 정보 없음" />
+        <div className="flex gap-2">
+          <button
+            className="h-10 rounded-md border border-[#071f46] px-4 text-sm font-bold text-[#071f46] transition hover:bg-[#071f46]/5 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!editable}
+            onClick={() => onEdit(proposal)}
+            type="button"
+          >
+            수정
+          </button>
+          <button
+            className="h-10 rounded-md border border-red-300 px-4 text-sm font-bold text-red-600 transition hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!editable || isWithdrawing}
+            onClick={() => onWithdraw(proposal)}
+            type="button"
+          >
+            {isWithdrawing ? "철회 중" : "철회"}
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <InfoItem label="총 박스" value={formatQuantity(sumBoxQuantity(request.items))} />
-        <InfoItem label="총 낱개" value={formatQuantity(sumItemQuantity(request.items))} />
-        <InfoItem label="픽업 시간" value={formatPickupTime(request)} />
-        <InfoItem label="희망 단가" value={formatCurrency(request.targetUnitPrice)} />
+        <InfoItem label="화주" value={formatVendorName(proposal)} />
+        <InfoItem label="화주 지역" value={proposal.vendor?.mainRegion ?? "-"} />
+        <InfoItem label="제안 단가" value={formatCurrency(proposal.unitPrice)} />
+        <InfoItem label="픽업 시간" value={formatPickupTime(proposal)} />
+        <InfoItem label="온도 관리" value={coldChainTypeLabels[proposal.coldChainType]} />
+        <InfoItem label="처리 조건" value={formatServiceOptions(proposal)} />
       </div>
 
-      <div className="grid gap-3">
-        {request.items.map((item, index) => (
-          <LineItemCard index={index} item={item} key={item.itemId ?? index} />
-        ))}
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <InfoItem label="토요일 배송" value={request.saturdayDeliveryRequired ? "필요" : "무관"} />
-        <InfoItem label="반품" value={request.returnRequired ? "필요" : "무관"} />
-      </div>
-
-      {request.memo ? (
+      {proposal.memo ? (
         <p className="rounded-md bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600">
-          {request.memo}
+          {proposal.memo}
         </p>
       ) : null}
     </article>
   );
 }
 
-function ProposalModal({
+function ProposalEditModal({
   form,
   isSubmitting,
   onChange,
   onClose,
   onSubmit,
-  request,
+  proposal,
 }: {
   form: ProposalFormState;
   isSubmitting: boolean;
   onChange: (form: ProposalFormState) => void;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  request: AgencyOpenContractRequestItem;
+  proposal: AgencyProposalItem;
 }) {
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-slate-950/45 px-4 py-6">
@@ -329,9 +319,11 @@ function ProposalModal({
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
           <div>
-            <p className="text-xs font-bold text-slate-400">제안 등록</p>
-            <h2 className="mt-1 text-xl font-bold text-slate-950">{request.productName}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{request.pickupAddress}</p>
+            <p className="text-xs font-bold text-slate-400">제안 수정</p>
+            <h2 className="mt-1 text-xl font-bold text-slate-950">{formatVendorName(proposal)}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              제출 상태의 제안만 수정할 수 있습니다.
+            </p>
           </div>
           <button
             className="h-10 rounded-md border border-slate-300 px-4 text-sm font-bold text-slate-700"
@@ -413,7 +405,7 @@ function ProposalModal({
             disabled={isSubmitting}
             type="submit"
           >
-            {isSubmitting ? "등록 중" : "제안 등록"}
+            {isSubmitting ? "수정 중" : "제안 수정"}
           </button>
         </div>
       </form>
@@ -452,41 +444,6 @@ function BooleanField({
   );
 }
 
-function LineItemCard({ index, item }: { index: number; item: AgencyContractRequestLineItem }) {
-  return (
-    <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm font-bold text-slate-950">
-          라인 {index + 1}. {item.productName}
-        </p>
-        <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-600">
-          {productCategoryLabels[item.productCategory]}
-        </span>
-        <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-600">
-          {boxSizeLabels[item.boxSize]}
-        </span>
-        <span className="rounded-full bg-[#071f46]/10 px-2 py-1 text-xs font-bold text-[#071f46]">
-          {coldChainTypeLabels[item.coldChainType]}
-        </span>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-5">
-        <InfoItem label="박스 수량" value={formatQuantity(item.boxQuantity)} />
-        <InfoItem label="낱개 수량" value={formatQuantity(item.itemQuantity)} />
-        <InfoItem label="평균 무게" value={formatWeight(item.averageWeightGram)} />
-        <InfoItem label="희망 단가" value={formatCurrency(item.targetUnitPrice)} />
-        <InfoItem label="온도" value={coldChainTypeLabels[item.coldChainType]} />
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Flag active={item.fragile} label="파손 주의" />
-        <Flag active={item.liquid} label="액체" />
-        <Flag active={item.freshFood} label="신선식품" />
-      </div>
-    </div>
-  );
-}
-
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-slate-200 bg-white px-3 py-3">
@@ -496,61 +453,16 @@ function InfoItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Flag({ active, label }: { active: boolean; label: string }) {
-  return (
-    <span
-      className={`inline-flex h-8 items-center justify-center rounded-md border px-2 text-xs font-bold ${
-        active
-          ? "border-[#071f46] bg-[#071f46] text-white"
-          : "border-slate-200 bg-white text-slate-400"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
-
-function sumBoxQuantity(items: AgencyContractRequestLineItem[]): number {
-  return items.reduce((sum, item) => sum + item.boxQuantity, 0);
-}
-
-function sumItemQuantity(items: AgencyContractRequestLineItem[]): number {
-  return items.reduce((sum, item) => sum + item.itemQuantity, 0);
-}
-
-function formatPickupTime(request: AgencyOpenContractRequestItem): string {
-  if (!request.pickupStartTime && !request.pickupEndTime) {
-    return "-";
-  }
-
-  return `${request.pickupStartTime ?? "-"} ~ ${request.pickupEndTime ?? "-"}`;
-}
-
-function formatCurrency(value: number | null): string {
-  return value === null ? "-" : `${value.toLocaleString("ko-KR")}원`;
-}
-
-function formatWeight(value: number | null): string {
-  return value === null ? "-" : `${value.toLocaleString("ko-KR")}g`;
-}
-
-function formatQuantity(value: number): string {
-  return `${value.toLocaleString("ko-KR")}개`;
-}
-
-function formatNumber(value: number): string {
-  return value.toLocaleString("ko-KR");
-}
-
-function formatContractRequestStatus(status: AgencyOpenContractRequestItem["status"]): string {
-  const labels: Record<AgencyOpenContractRequestItem["status"], string> = {
-    OPEN: "진행중",
-    CANCELED: "취소됨",
-    REJECTED: "거절됨",
-    CONTRACTED: "계약 완료",
+function toFormState(proposal: AgencyProposalItem): ProposalFormState {
+  return {
+    unitPrice: String(proposal.unitPrice),
+    pickupStartTime: proposal.pickupStartTime ?? "",
+    pickupEndTime: proposal.pickupEndTime ?? "",
+    saturdayDeliveryAvailable: proposal.saturdayDeliveryAvailable,
+    returnAvailable: proposal.returnAvailable,
+    coldChainType: proposal.coldChainType,
+    memo: proposal.memo ?? "",
   };
-
-  return labels[status];
 }
 
 function toProposalRequest(form: ProposalFormState): AgencyProposalRequest {
@@ -579,16 +491,58 @@ function formatIntegerInput(value: string): string {
   return value ? Number(value).toLocaleString("ko-KR") : "";
 }
 
+function formatNumber(value: number): string {
+  return value.toLocaleString("ko-KR");
+}
+
+function formatCurrency(value: number): string {
+  return `${value.toLocaleString("ko-KR")}원`;
+}
+
+function formatPickupTime(proposal: AgencyProposalItem): string {
+  if (!proposal.pickupStartTime && !proposal.pickupEndTime) {
+    return "-";
+  }
+
+  return `${proposal.pickupStartTime ?? "-"} ~ ${proposal.pickupEndTime ?? "-"}`;
+}
+
+function formatServiceOptions(proposal: AgencyProposalItem): string {
+  return [
+    proposal.saturdayDeliveryAvailable ? "토요일 배송 가능" : "토요일 배송 불가",
+    proposal.returnAvailable ? "반품 가능" : "반품 불가",
+  ].join(" / ");
+}
+
+function formatVendorName(proposal: AgencyProposalItem): string {
+  return proposal.vendor?.businessName ?? "화주 정보 없음";
+}
+
+function formatVendorSummary(proposal: AgencyProposalItem): string {
+  if (!proposal.vendor) {
+    return "화주 정보가 응답에 포함되지 않았습니다.";
+  }
+
+  return `${proposal.vendor.mainRegion} / ${proposal.vendor.phoneNumber}`;
+}
+
+function formatProposalStatus(status: AgencyProposalItem["status"]): string {
+  const labels: Record<string, string> = {
+    SUBMITTED: "제안 제출",
+    WITHDRAWN: "철회됨",
+    ACCEPTED: "수락됨",
+    REJECTED: "거절됨",
+  };
+
+  return labels[status] ?? status;
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
 
-  return "일감을 불러오지 못했습니다.";
-}
-
-function isAgencyProfileMissing(error: unknown): boolean {
-  return error instanceof ApiError && error.code === "VENDOR_AGENCY_NOT_FOUND";
+  return "제안을 처리하지 못했습니다.";
 }
 
 const inputClassName =
