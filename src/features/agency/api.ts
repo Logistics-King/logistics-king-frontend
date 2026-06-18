@@ -55,6 +55,24 @@ export type AgencyOpenContractRequestItem = {
   status: ContractRequestStatus;
 };
 
+export type AgencyProposalRequest = {
+  unitPrice: number;
+  pickupStartTime: string | null;
+  pickupEndTime: string | null;
+  saturdayDeliveryAvailable: boolean;
+  returnAvailable: boolean;
+  coldChainType: ColdChainType;
+  memo: string | null;
+};
+
+export type AgencyProposalItem = AgencyProposalRequest & {
+  proposalId: string;
+  contractRequestId: string;
+  vendorId: string;
+  agencyId: string;
+  status: string;
+};
+
 export function getAgencyOpenContractRequests({
   page = 0,
   size = 20,
@@ -68,4 +86,15 @@ export function getAgencyOpenContractRequests({
   });
 
   return apiFetch(`/api/v1/contract-requests/open?${searchParams.toString()}`);
+}
+
+export function submitAgencyProposal(
+  contractRequestId: string,
+  request: AgencyProposalRequest,
+): Promise<AgencyProposalItem> {
+  return apiFetch(`/api/v1/contract-requests/${contractRequestId}/proposals`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify(request),
+  });
 }

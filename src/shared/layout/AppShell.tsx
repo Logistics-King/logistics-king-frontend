@@ -28,16 +28,30 @@ export function AppShell({
   description: string;
   children: ReactNode;
 }) {
-  const menuItems = getMenuItems(role);
+  const [authenticatedRole, setAuthenticatedRole] = useState<UserRole | null>(null);
+  const effectiveRole = authenticatedRole ?? role;
+  const menuItems = getMenuItems(effectiveRole);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const storedRole = window.localStorage.getItem("logisticsKingRole");
+
+      if (isUserRole(storedRole)) {
+        setAuthenticatedRole(storedRole);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950 lg:flex">
-      <DesktopSidebar menuItems={menuItems} role={role} />
+      <DesktopSidebar menuItems={menuItems} role={effectiveRole} />
       <div className="flex min-h-screen flex-1 flex-col pb-24 lg:pb-0">
         <header className="border-b border-slate-200 bg-white">
-          <TopNavigation role={role} />
+          <TopNavigation role={effectiveRole} />
           <div className="px-5 py-5 lg:px-8">
-            <p className="text-sm font-semibold text-emerald-700">{roleLabelMap[role]}</p>
+            <p className="text-sm font-semibold text-emerald-700">{roleLabelMap[effectiveRole]}</p>
             <h1 className="mt-2 text-3xl font-bold tracking-normal">{title}</h1>
             <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
           </div>
@@ -124,6 +138,7 @@ function TopNavigation({ role }: { role: UserRole }) {
     try {
       await logout();
     } finally {
+      window.localStorage.removeItem("logisticsKingRole");
       router.replace("/");
     }
   }
@@ -440,6 +455,10 @@ function formatNotificationTime(value: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function isUserRole(value: string | null): value is UserRole {
+  return value === "ADMIN" || value === "VENDOR" || value === "AGENCY" || value === "DRIVER";
 }
 
 const roleLabelMap: Record<UserRole, string> = {

@@ -47,6 +47,7 @@ export function LoginForm() {
       // 프로필이 없으면 해당 프로필 등록 화면으로 보내서 필수 정보를 먼저 받습니다.
       const nextPath = await resolvePostLoginPath(user.role);
 
+      window.localStorage.setItem("logisticsKingRole", user.role);
       router.push(nextPath);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
