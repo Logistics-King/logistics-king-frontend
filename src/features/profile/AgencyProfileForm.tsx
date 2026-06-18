@@ -28,7 +28,7 @@ type AgencyProfileFormState = {
   saturdayPickupAvailable: boolean;
   saturdayDeliveryAvailable: boolean;
   returnAvailable: boolean;
-  coldChainType: ColdChainType;
+  supportedColdChainTypes: ColdChainType[];
   maxMonthlyVolume: string;
 };
 
@@ -48,7 +48,7 @@ const initialFormState: AgencyProfileFormState = {
   saturdayPickupAvailable: false,
   saturdayDeliveryAvailable: false,
   returnAvailable: false,
-  coldChainType: "NONE",
+  supportedColdChainTypes: ["NONE"],
   maxMonthlyVolume: "",
 };
 
@@ -69,6 +69,8 @@ const coldChainOptions: Array<{ value: ColdChainType; label: string }> = [
   { value: "FROZEN", label: "냉동" },
 ];
 
+// 대리점 프로필 등록/수정 화면입니다.
+// 기존 프로필이 있으면 GET으로 먼저 불러와 수정 모드로 동작하고, 없으면 등록 모드로 동작합니다.
 export function AgencyProfileForm() {
   const [form, setForm] = useState(initialFormState);
   const [profileExists, setProfileExists] = useState(false);
@@ -85,6 +87,7 @@ export function AgencyProfileForm() {
       setErrorMessage("");
 
       try {
+        // 대리점 프로필은 한 사용자당 하나라서, 화면 진입 시 먼저 기존 프로필을 조회합니다.
         const profile = await getAgencyProfile();
 
         if (active) {
@@ -133,6 +136,7 @@ export function AgencyProfileForm() {
     try {
       const request = toAgencyProfileRequest(form);
 
+      // profileExists 값으로 POST(등록)와 PUT(수정)을 나눕니다.
       if (profileExists) {
         const profile = await updateAgencyProfile(request);
         setForm(toFormState(profile));
@@ -190,9 +194,22 @@ export function AgencyProfileForm() {
           onChange={(value) => setForm({ ...form, carrier: value as Carrier })}
         />
         <TextField label="대리점명" value={form.agencyName} onChange={(value) => setForm({ ...form, agencyName: value })} />
-        <TextField label="사업자등록번호" value={form.businessRegistrationNumber} onChange={(value) => setForm({ ...form, businessRegistrationNumber: value })} />
+        <TextField
+          label="사업자등록번호"
+          value={form.businessRegistrationNumber}
+          onChange={(value) =>
+            setForm({
+              ...form,
+              businessRegistrationNumber: formatBusinessRegistrationNumber(value),
+            })
+          }
+        />
         <TextField label="대표자명" value={form.representativeName} onChange={(value) => setForm({ ...form, representativeName: value })} />
-        <TextField label="연락처" value={form.phoneNumber} onChange={(value) => setForm({ ...form, phoneNumber: value })} />
+        <TextField
+          label="연락처"
+          value={form.phoneNumber}
+          onChange={(value) => setForm({ ...form, phoneNumber: formatPhoneNumber(value) })}
+        />
         <div className="grid gap-2">
           <span className="text-sm font-semibold text-slate-700">우편번호</span>
           <div className="grid gap-2 sm:grid-cols-[1fr_120px]">
@@ -238,12 +255,28 @@ export function AgencyProfileForm() {
         <BooleanField checked={form.returnAvailable} label="반품 가능" onChange={(checked) => setForm({ ...form, returnAvailable: checked })} />
       </div>
 
-      <SelectField
-        label="온도 관리"
-        value={form.coldChainType}
-        options={coldChainOptions}
-        onChange={(value) => setForm({ ...form, coldChainType: value as ColdChainType })}
-      />
+      <div className="mt-5 grid gap-2">
+        <span className="text-sm font-semibold text-slate-700">지원 온도 관리</span>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {coldChainOptions.map((option) => (
+            <BooleanField
+              checked={form.supportedColdChainTypes.includes(option.value)}
+              key={option.value}
+              label={option.label}
+              onChange={(checked) =>
+                setForm({
+                  ...form,
+                  supportedColdChainTypes: toggleColdChainType(
+                    form.supportedColdChainTypes,
+                    option.value,
+                    checked,
+                  ),
+                })
+              }
+            />
+          ))}
+        </div>
+      </div>
 
       {errorMessage ? (
         <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -356,8 +389,16 @@ function validateForm(form: AgencyProfileFormState): string {
     return "대표자명은 필수입니다.";
   }
 
+  if (!isValidBusinessRegistrationNumber(form.businessRegistrationNumber)) {
+    return "사업자등록번호는 10자리로 입력해 주세요.";
+  }
+
   if (!form.phoneNumber.trim()) {
     return "연락처는 필수입니다.";
+  }
+
+  if (!isValidPhoneNumber(form.phoneNumber)) {
+    return "연락처는 10~11자리로 입력해 주세요.";
   }
 
   if (!form.address.trim()) {
@@ -370,6 +411,10 @@ function validateForm(form: AgencyProfileFormState): string {
 
   if (parseServiceRegions(form.serviceRegions).length === 0) {
     return "담당 가능 지역은 1개 이상이어야 합니다.";
+  }
+
+  if (form.supportedColdChainTypes.length === 0) {
+    return "지원 온도 관리는 1개 이상 선택해야 합니다.";
   }
 
   if (form.maxMonthlyVolume && Number(form.maxMonthlyVolume) < 0) {
@@ -396,7 +441,7 @@ function toAgencyProfileRequest(form: AgencyProfileFormState): AgencyProfileRequ
     saturdayPickupAvailable: form.saturdayPickupAvailable,
     saturdayDeliveryAvailable: form.saturdayDeliveryAvailable,
     returnAvailable: form.returnAvailable,
-    coldChainType: form.coldChainType,
+    supportedColdChainTypes: form.supportedColdChainTypes,
     maxMonthlyVolume: numberToNullable(form.maxMonthlyVolume),
   };
 }
@@ -405,9 +450,11 @@ function toFormState(profile: AgencyProfile): AgencyProfileFormState {
   return {
     carrier: profile.carrier,
     agencyName: profile.agencyName,
-    businessRegistrationNumber: profile.businessRegistrationNumber ?? "",
+    businessRegistrationNumber: formatBusinessRegistrationNumber(
+      profile.businessRegistrationNumber ?? "",
+    ),
     representativeName: profile.representativeName,
-    phoneNumber: profile.phoneNumber,
+    phoneNumber: formatPhoneNumber(profile.phoneNumber),
     postalCode: profile.postalCode ?? "",
     address: profile.address,
     addressDetail: profile.addressDetail ?? "",
@@ -418,9 +465,25 @@ function toFormState(profile: AgencyProfile): AgencyProfileFormState {
     saturdayPickupAvailable: profile.saturdayPickupAvailable,
     saturdayDeliveryAvailable: profile.saturdayDeliveryAvailable,
     returnAvailable: profile.returnAvailable,
-    coldChainType: profile.coldChainType,
+    supportedColdChainTypes: normalizeSupportedColdChainTypes(profile.supportedColdChainTypes),
     maxMonthlyVolume: profile.maxMonthlyVolume === null ? "" : String(profile.maxMonthlyVolume),
   };
+}
+
+function toggleColdChainType(
+  currentTypes: ColdChainType[],
+  value: ColdChainType,
+  checked: boolean,
+): ColdChainType[] {
+  if (checked) {
+    return Array.from(new Set([...currentTypes, value]));
+  }
+
+  return currentTypes.filter((type) => type !== value);
+}
+
+function normalizeSupportedColdChainTypes(value: ColdChainType[] | undefined): ColdChainType[] {
+  return value && value.length > 0 ? value : ["NONE"];
 }
 
 function parseServiceRegions(value: string): string[] {
@@ -434,6 +497,46 @@ function blankToNull(value: string): string | null {
   const trimmed = value.trim();
 
   return trimmed ? trimmed : null;
+}
+
+function formatBusinessRegistrationNumber(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 5) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+
+  return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+}
+
+function isValidBusinessRegistrationNumber(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+
+  return digits.length === 0 || digits.length === 10;
+}
+
+function formatPhoneNumber(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+
+function isValidPhoneNumber(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+
+  return digits.length === 10 || digits.length === 11;
 }
 
 function numberToNullable(value: string): number | null {

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ApiError } from "@/src/shared/api/client";
 import type { PageResponse } from "@/src/shared/api/types";
+import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
 import {
   getVendorContractRequests,
   getVendorContracts,
@@ -27,6 +29,7 @@ const initialState: DashboardState = {
 export function VendorDashboard() {
   const [dashboard, setDashboard] = useState<DashboardState>(initialState);
   const [errorMessage, setErrorMessage] = useState("");
+  const [needsVendorProfile, setNeedsVendorProfile] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +38,7 @@ export function VendorDashboard() {
     async function fetchDashboard() {
       setIsLoading(true);
       setErrorMessage("");
+      setNeedsVendorProfile(false);
 
       try {
         const [products, contractRequests, contracts] = await Promise.all([
@@ -48,6 +52,7 @@ export function VendorDashboard() {
         }
       } catch (error) {
         if (active) {
+          setNeedsVendorProfile(isVendorProfileMissing(error));
           setErrorMessage(getErrorMessage(error));
         }
       } finally {
@@ -84,7 +89,9 @@ export function VendorDashboard() {
 
   return (
     <section className="grid gap-5">
-      {errorMessage ? (
+      {needsVendorProfile ? <ProfileRequiredNotice role="VENDOR" /> : null}
+
+      {errorMessage && !needsVendorProfile ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
           {errorMessage}
         </p>
@@ -210,6 +217,10 @@ function getErrorMessage(error: unknown): string {
   }
 
   return "화주 홈 정보를 불러오지 못했습니다.";
+}
+
+function isVendorProfileMissing(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "VENDOR_NOT_FOUND";
 }
 
 function formatNumber(value: number): string {
