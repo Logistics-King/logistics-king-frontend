@@ -177,7 +177,7 @@ function ContractCard({
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <InfoItem label={counterpartyLabel} value={shortId(getCounterpartyId(contract, counterparty))} />
+        <InfoItem label={counterpartyLabel} value={formatCounterparty(contract, counterparty)} />
         <InfoItem label="집하 지역" value={contract.pickupRegion} />
         <InfoItem label="월 물량" value={`${formatNumber(contract.monthlyVolume)}개`} />
         <InfoItem label="픽업 시간" value={formatPickupTime(contract)} />
@@ -205,8 +205,23 @@ function InfoItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function getCounterpartyId(contract: ContractListItem, counterparty: "VENDOR" | "AGENCY"): string {
-  return counterparty === "AGENCY" ? contract.agencyId : contract.vendorId;
+function formatCounterparty(
+  contract: ContractListItem,
+  counterparty: "VENDOR" | "AGENCY",
+): string {
+  if (counterparty === "AGENCY") {
+    if (contract.agency) {
+      return `${contract.agency.agencyName} / ${contract.agency.carrier}`;
+    }
+
+    return shortId(contract.agencyId);
+  }
+
+  if (contract.vendor) {
+    return contract.vendor.businessName;
+  }
+
+  return shortId(contract.vendorId);
 }
 
 function formatContractStatus(status: ContractListItem["status"]): string {
