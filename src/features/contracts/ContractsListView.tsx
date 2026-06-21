@@ -156,6 +156,10 @@ function ContractCard({
   counterparty: "VENDOR" | "AGENCY";
   counterpartyLabel: string;
 }) {
+  const contractItems = contract.items ?? [];
+  const totalBoxQuantity = sumContractLineQuantity(contractItems, "boxQuantity");
+  const totalItemQuantity = sumContractLineQuantity(contractItems, "itemQuantity");
+
   return (
     <article className="grid gap-4 px-5 py-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -179,7 +183,8 @@ function ContractCard({
       <div className="grid gap-3 md:grid-cols-4">
         <InfoItem label={counterpartyLabel} value={formatCounterparty(contract, counterparty)} />
         <InfoItem label="집하 지역" value={contract.pickupRegion} />
-        <InfoItem label="월 물량" value={`${formatNumber(contract.monthlyVolume)}개`} />
+        <InfoItem label="총 박스" value={`${formatNumber(totalBoxQuantity)}개`} />
+        <InfoItem label="총 낱개" value={`${formatNumber(totalItemQuantity)}개`} />
         <InfoItem label="픽업 시간" value={formatPickupTime(contract)} />
         <InfoItem label="온도 관리" value={coldChainTypeLabels[contract.coldChainType]} />
         <InfoItem label="토요일 배송" value={contract.saturdayDeliveryAvailable ? "가능" : "불가"} />
@@ -192,7 +197,39 @@ function ContractCard({
           {contract.memo}
         </p>
       ) : null}
+
+      {contractItems.length > 0 ? <ContractLineItems items={contractItems} /> : null}
     </article>
+  );
+}
+
+function ContractLineItems({ items }: { items: ContractListItem["items"] }) {
+  return (
+    <div className="overflow-x-auto rounded-md border border-slate-200">
+      <div className="min-w-[760px]">
+        <div className="grid grid-cols-[1.4fr_0.9fr_0.9fr_0.9fr_0.9fr] gap-3 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
+          <span>계약 물품</span>
+          <span>박스 규격</span>
+          <span>수량</span>
+          <span>단가</span>
+          <span>온도</span>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {items.map((item) => (
+            <div
+              className="grid grid-cols-[1.4fr_0.9fr_0.9fr_0.9fr_0.9fr] gap-3 px-3 py-3 text-sm text-slate-700"
+              key={item.itemId}
+            >
+              <span className="font-semibold text-slate-950">{item.productName}</span>
+              <span>{boxSizeLabels[item.boxSize]}</span>
+              <span>{formatContractLineQuantity(item)}</span>
+              <span>{formatCurrency(item.unitPrice)}</span>
+              <span>{coldChainTypeLabels[item.coldChainType]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -238,6 +275,31 @@ function formatPickupTime(contract: ContractListItem): string {
   }
 
   return `${contract.pickupStartTime ?? "-"} ~ ${contract.pickupEndTime ?? "-"}`;
+}
+
+function sumContractLineQuantity(
+  items: ContractListItem["items"],
+  key: "boxQuantity" | "itemQuantity",
+): number {
+  if (items.length === 0) {
+    return 0;
+  }
+
+  return items.reduce((sum, item) => sum + item[key], 0);
+}
+
+function formatContractLineQuantity(item: ContractListItem["items"][number]): string {
+  const quantities = [];
+
+  if (item.boxQuantity > 0) {
+    quantities.push(`박스 ${formatNumber(item.boxQuantity)}개`);
+  }
+
+  if (item.itemQuantity > 0) {
+    quantities.push(`낱개 ${formatNumber(item.itemQuantity)}개`);
+  }
+
+  return quantities.length > 0 ? quantities.join(" / ") : "-";
 }
 
 function formatCurrency(value: number): string {

@@ -28,6 +28,22 @@ export type ContractAgencySummary = {
   maxMonthlyVolume: number | null;
 };
 
+export type ContractLineItem = {
+  itemId: string;
+  productId: string | null;
+  productCategory: ProductCategory;
+  productName: string;
+  boxSize: BoxSize;
+  boxQuantity: number;
+  itemQuantity: number;
+  averageWeightGram: number | null;
+  fragile: boolean;
+  liquid: boolean;
+  freshFood: boolean;
+  coldChainType: ColdChainType;
+  unitPrice: number;
+};
+
 export type ContractListItem = {
   contractId: string;
   contractRequestId: string;
@@ -47,6 +63,7 @@ export type ContractListItem = {
   returnAvailable: boolean;
   coldChainType: ColdChainType;
   memo: string | null;
+  items: ContractLineItem[];
   status: "ACTIVE" | string;
   vendor: ContractVendorSummary | null;
   agency: ContractAgencySummary | null;
