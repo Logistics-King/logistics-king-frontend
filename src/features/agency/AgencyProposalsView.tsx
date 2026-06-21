@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import type { ColdChainType, PageResponse } from "@/src/shared/api/types";
+import { ProposalNegotiationPanel } from "@/src/features/proposals/ProposalNegotiationPanel";
 import {
   getAgencyProposals,
   updateAgencyProposal,
@@ -73,6 +74,11 @@ export function AgencyProposalsView() {
   }, [page, reloadKey]);
 
   function openEditForm(proposal: AgencyProposalItem) {
+    if (proposal.pendingNegotiationId) {
+      setErrorMessage("응답 대기 중인 단가 조율이 있어 제안을 수정할 수 없습니다.");
+      return;
+    }
+
     setEditingProposal(proposal);
     setForm(toFormState(proposal));
     setErrorMessage("");
@@ -116,6 +122,11 @@ export function AgencyProposalsView() {
   }
 
   async function handleWithdraw(proposal: AgencyProposalItem) {
+    if (proposal.pendingNegotiationId) {
+      setErrorMessage("응답 대기 중인 단가 조율이 있어 제안을 철회할 수 없습니다.");
+      return;
+    }
+
     if (!window.confirm("제안을 철회할까요? 철회한 제안은 다시 수정할 수 없습니다.")) {
       return;
     }
@@ -177,6 +188,7 @@ export function AgencyProposalsView() {
                 isWithdrawing={withdrawingProposalId === proposal.proposalId}
                 key={proposal.proposalId}
                 onEdit={openEditForm}
+                onNegotiationChanged={() => setReloadKey((current) => current + 1)}
                 onWithdraw={handleWithdraw}
                 proposal={proposal}
               />
@@ -231,15 +243,19 @@ export function AgencyProposalsView() {
 function ProposalCard({
   isWithdrawing,
   onEdit,
+  onNegotiationChanged,
   onWithdraw,
   proposal,
 }: {
   isWithdrawing: boolean;
   onEdit: (proposal: AgencyProposalItem) => void;
+  onNegotiationChanged: () => void;
   onWithdraw: (proposal: AgencyProposalItem) => void;
   proposal: AgencyProposalItem;
 }) {
-  const editable = proposal.status === "SUBMITTED";
+  const editable =
+    (proposal.status === "SUBMITTED" || proposal.status === "NEGOTIATING") &&
+    !proposal.pendingNegotiationId;
 
   return (
     <article className="grid gap-4 px-5 py-5">
@@ -282,6 +298,8 @@ function ProposalCard({
         <InfoItem label="화주" value={formatVendorName(proposal)} />
         <InfoItem label="화주 지역" value={proposal.vendor?.mainRegion ?? "-"} />
         <InfoItem label="제안 단가" value={formatCurrency(proposal.unitPrice)} />
+        <InfoItem label="최초 단가" value={formatCurrency(proposal.initialUnitPrice)} />
+        <InfoItem label="합의 단가" value={formatCurrency(proposal.finalUnitPrice)} />
         <InfoItem label="픽업 시간" value={formatPickupTime(proposal)} />
         <InfoItem label="온도 관리" value={coldChainTypeLabels[proposal.coldChainType]} />
         <InfoItem label="처리 조건" value={formatServiceOptions(proposal)} />
@@ -292,6 +310,14 @@ function ProposalCard({
           {proposal.memo}
         </p>
       ) : null}
+
+      <ProposalNegotiationPanel
+        myRole="AGENCY"
+        onChanged={onNegotiationChanged}
+        pendingNegotiationId={proposal.pendingNegotiationId}
+        proposalId={proposal.proposalId}
+        proposalStatus={proposal.status}
+      />
     </article>
   );
 }
@@ -491,12 +517,16 @@ function formatIntegerInput(value: string): string {
   return value ? Number(value).toLocaleString("ko-KR") : "";
 }
 
-function formatNumber(value: number): string {
+function formatNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+
   return value.toLocaleString("ko-KR");
 }
 
-function formatCurrency(value: number): string {
-  return `${value.toLocaleString("ko-KR")}원`;
+function formatCurrency(value: number | null | undefined): string {
+  return value === null || value === undefined ? "-" : `${formatNumber(value)}원`;
 }
 
 function formatPickupTime(proposal: AgencyProposalItem): string {
@@ -532,6 +562,7 @@ function formatProposalStatus(status: AgencyProposalItem["status"]): string {
     WITHDRAWN: "철회됨",
     ACCEPTED: "수락됨",
     REJECTED: "거절됨",
+    NEGOTIATING: "단가 조율중",
   };
 
   return labels[status] ?? status;

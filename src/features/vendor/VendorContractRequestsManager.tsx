@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/src/shared/api/client";
 import type { BoxSize, ColdChainType, PageResponse, ProductCategory } from "@/src/shared/api/types";
 import { getVendorProfile, type VendorProfile } from "@/src/features/profile/api";
+import { ProposalNegotiationPanel } from "@/src/features/proposals/ProposalNegotiationPanel";
 import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
 import {
   acceptVendorProposal,
@@ -364,6 +365,11 @@ export function VendorContractRequestsManager({
   }
 
   async function handleAcceptProposal(proposal: VendorProposalItem) {
+    if (proposal.pendingNegotiationId) {
+      setDetailErrorMessage("응답 대기 중인 단가 조율이 있어 제안을 수락할 수 없습니다.");
+      return;
+    }
+
     if (!window.confirm("이 대리점 제안을 수락하고 최종 계약을 생성할까요?")) {
       return;
     }
@@ -582,6 +588,7 @@ export function VendorContractRequestsManager({
           onCancel={handleCancelRequest}
           onClose={closeDetailPanel}
           onEdit={handleEditRequest}
+          onProposalChanged={refreshSelectedRequest}
           proposals={selectedRequestProposals}
           request={selectedRequest}
         />
@@ -853,6 +860,7 @@ function ContractRequestDetailPanel({
   onCancel,
   onClose,
   onEdit,
+  onProposalChanged,
   proposals,
   request,
 }: {
@@ -864,6 +872,7 @@ function ContractRequestDetailPanel({
   onCancel: (contractRequestId: string) => void;
   onClose: () => void;
   onEdit: (contractRequestId: string) => void;
+  onProposalChanged: (contractRequestId: string) => void | Promise<void>;
   proposals: PageResponse<VendorProposalItem> | null;
   request: VendorContractRequestDetail | null;
 }) {
@@ -985,6 +994,7 @@ function ContractRequestDetailPanel({
                       isAccepting={acceptingProposalId === proposal.proposalId}
                       key={proposal.proposalId}
                       onAccept={onAcceptProposal}
+                      onNegotiationChanged={() => onProposalChanged(request.contractRequestId)}
                       proposal={proposal}
                     />
                   ))}
@@ -1018,14 +1028,19 @@ function ProposalCard({
   canAccept,
   isAccepting,
   onAccept,
+  onNegotiationChanged,
   proposal,
 }: {
   canAccept: boolean;
   isAccepting: boolean;
   onAccept: (proposal: VendorProposalItem) => void;
+  onNegotiationChanged: () => void | Promise<void>;
   proposal: VendorProposalItem;
 }) {
-  const acceptEnabled = canAccept && proposal.status === "SUBMITTED";
+  const acceptEnabled =
+    canAccept &&
+    (proposal.status === "SUBMITTED" || proposal.status === "NEGOTIATING") &&
+    !proposal.pendingNegotiationId;
 
   return (
     <article className="grid gap-4 px-4 py-4">
@@ -1033,6 +1048,8 @@ function ProposalCard({
         <Info label="대리점" value={proposal.agency?.agencyName ?? "대리점 정보 없음"} />
         <Info label="택배사/지역" value={formatProposalAgencyArea(proposal)} />
         <Info label="제안 단가" value={formatCurrency(proposal.unitPrice)} />
+        <Info label="최초 단가" value={formatCurrency(proposal.initialUnitPrice)} />
+        <Info label="합의 단가" value={formatCurrency(proposal.finalUnitPrice)} />
         <Info label="픽업 시간" value={formatProposalPickupTime(proposal)} />
         <Info label="온도 관리" value={formatColdChainType(proposal.coldChainType)} />
         <Info label="상태" value={formatProposalStatus(proposal.status)} />
@@ -1040,6 +1057,13 @@ function ProposalCard({
       {proposal.memo ? (
         <Info label="제안 메모" value={proposal.memo} />
       ) : null}
+      <ProposalNegotiationPanel
+        myRole="VENDOR"
+        onChanged={onNegotiationChanged}
+        pendingNegotiationId={proposal.pendingNegotiationId}
+        proposalId={proposal.proposalId}
+        proposalStatus={proposal.status}
+      />
       <div className="flex justify-end">
         <button
           className="h-10 rounded-md bg-[#071f46] px-4 text-sm font-bold text-white transition hover:bg-[#0a2d63] disabled:cursor-not-allowed disabled:bg-slate-400"
@@ -1295,7 +1319,11 @@ function sumBoxQuantity(items: VendorContractRequestLine[]): number {
   return items.reduce((sum, item) => sum + item.boxQuantity, 0);
 }
 
-function formatNumber(value: number): string {
+function formatNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+
   return value.toLocaleString("ko-KR");
 }
 
@@ -1316,6 +1344,7 @@ function formatProposalStatus(status: VendorProposalItem["status"]): string {
     WITHDRAWN: "철회됨",
     ACCEPTED: "수락됨",
     REJECTED: "거절됨",
+    NEGOTIATING: "단가 조율중",
   };
 
   return labels[status] ?? status;
@@ -1338,8 +1367,8 @@ function formatLineQuantity(item: VendorContractRequestLine): string {
   return quantities.length > 0 ? quantities.join(" / ") : "-";
 }
 
-function formatCurrency(value: number | null): string {
-  return value === null ? "-" : `${formatNumber(value)}원`;
+function formatCurrency(value: number | null | undefined): string {
+  return value === null || value === undefined ? "-" : `${formatNumber(value)}원`;
 }
 
 function formatPickupTime(request: VendorContractRequestDetail): string {

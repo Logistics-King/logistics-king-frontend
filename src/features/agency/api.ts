@@ -95,13 +95,23 @@ export type AgencyVendorSummary = {
   mainRegion: string;
 };
 
-export type AgencyProposalStatus = "SUBMITTED" | "WITHDRAWN" | "ACCEPTED" | "REJECTED" | string;
+export type AgencyProposalStatus =
+  | "SUBMITTED"
+  | "NEGOTIATING"
+  | "WITHDRAWN"
+  | "ACCEPTED"
+  | "REJECTED"
+  | string;
 
 export type AgencyProposalItem = AgencyProposalRequest & {
   proposalId: string;
   contractRequestId: string;
   vendorId: string;
   agencyId: string;
+  initialUnitPrice: number;
+  finalUnitPrice: number | null;
+  pendingNegotiationId: string | null;
+  nextSequence: number;
   status: AgencyProposalStatus;
   agency: AgencySummary | null;
   vendor: AgencyVendorSummary | null;

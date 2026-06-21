@@ -64,7 +64,7 @@ export type ContractRequestType = "VENDOR_OFFER" | "AGENCY_OFFER";
 export type ContractRequestStatus = "OPEN" | "CANCELED" | "REJECTED" | "CONTRACTED";
 export type VendorProposalStatus =
   | "SUBMITTED"
-  | "UPDATED"
+  | "NEGOTIATING"
   | "WITHDRAWN"
   | "ACCEPTED"
   | "REJECTED"
@@ -123,6 +123,10 @@ export type VendorProposalItem = {
   agencyId: string;
   agency: VendorAgencySummary | null;
   unitPrice: number;
+  initialUnitPrice: number;
+  finalUnitPrice: number | null;
+  pendingNegotiationId: string | null;
+  nextSequence: number;
   pickupStartTime: string | null;
   pickupEndTime: string | null;
   saturdayDeliveryAvailable: boolean;
