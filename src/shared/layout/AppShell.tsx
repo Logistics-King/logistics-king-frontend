@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { logout } from "@/src/features/auth/api";
+import { API_BASE_URL } from "@/src/shared/api/client";
 import type { UserRole } from "@/src/shared/api/types";
 import { getMenuItems, type MenuItem } from "@/src/shared/navigation/menu";
 import {
@@ -105,6 +106,8 @@ function TopNavigation({ role }: { role: UserRole }) {
   const router = useRouter();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [latestNotification, setLatestNotification] = useState<NotificationItem | null>(null);
+  const [toastNotification, setToastNotification] = useState<NotificationItem | null>(null);
   const [infoHref, roleHomeHref] = [roleInfoPathMap[role], roleHomePathMap[role]];
 
   useEffect(() => {
@@ -125,14 +128,44 @@ function TopNavigation({ role }: { role: UserRole }) {
     }
 
     fetchUnreadCount();
-    // 백엔드에 실시간 알림 API가 아직 없어서 1분마다 unread count를 다시 조회합니다.
-    const intervalId = window.setInterval(fetchUnreadCount, 60_000);
+    const eventSource = new EventSource(`${API_BASE_URL}/api/v1/notifications/stream`, {
+      withCredentials: true,
+    });
+
+    eventSource.addEventListener("connected", fetchUnreadCount);
+    eventSource.addEventListener("notification", (event) => {
+      try {
+        const notification = JSON.parse((event as MessageEvent).data) as NotificationItem;
+
+        if (active) {
+          setLatestNotification(notification);
+          setToastNotification(notification);
+        }
+      } catch {
+        // 알림 payload 파싱에 실패해도 badge는 서버 기준으로 다시 맞춥니다.
+      }
+
+      fetchUnreadCount();
+    });
+    eventSource.onerror = () => {
+      fetchUnreadCount();
+    };
 
     return () => {
       active = false;
-      window.clearInterval(intervalId);
+      eventSource.close();
     };
   }, []);
+
+  useEffect(() => {
+    if (!toastNotification) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setToastNotification(null), 5_000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [toastNotification]);
 
   async function handleLogout() {
     try {
@@ -183,6 +216,7 @@ function TopNavigation({ role }: { role: UserRole }) {
           </button>
           {notificationsOpen ? (
             <NotificationPanel
+              key={latestNotification?.notificationId ?? "notifications"}
               onClose={() => setNotificationsOpen(false)}
               role={role}
               onUnreadCountChange={setUnreadCount}
@@ -193,6 +227,16 @@ function TopNavigation({ role }: { role: UserRole }) {
           로그아웃
         </button>
       </nav>
+      {toastNotification ? (
+        <NotificationToast
+          item={toastNotification}
+          onClose={() => setToastNotification(null)}
+          onOpen={() => {
+            setNotificationsOpen(true);
+            setToastNotification(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -344,6 +388,34 @@ function NotificationPanel({
             ))}
           </ul>
         )}
+      </div>
+    </div>
+  );
+}
+
+function NotificationToast({
+  item,
+  onClose,
+  onOpen,
+}: {
+  item: NotificationItem;
+  onClose: () => void;
+  onOpen: () => void;
+}) {
+  return (
+    <div className="fixed right-4 top-20 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+      <div className="flex items-start justify-between gap-3">
+        <button className="grid min-w-0 flex-1 gap-1 text-left" onClick={onOpen} type="button">
+          <span className="text-sm font-bold text-slate-950">{item.title}</span>
+          <span className="line-clamp-2 text-xs leading-5 text-slate-600">{item.message}</span>
+        </button>
+        <button
+          className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500 transition hover:bg-slate-200"
+          onClick={onClose}
+          type="button"
+        >
+          닫기
+        </button>
       </div>
     </div>
   );
