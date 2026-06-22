@@ -3,8 +3,11 @@ import type {
   BoxSize,
   Carrier,
   ColdChainType,
+  ContractRequestContractType,
+  DayOfWeek,
   PageResponse,
   ProductCategory,
+  RecurringPickupCycle,
 } from "@/src/shared/api/types";
 import type { ContractListItem } from "@/src/features/contracts/types";
 
@@ -16,6 +19,7 @@ export type ContractRequestStatus = "OPEN" | "CANCELED" | "REJECTED" | "CONTRACT
 
 export type AgencyContractRequestLineItem = {
   itemId: string;
+  contractRequestItemId?: string;
   productId: string | null;
   productCategory: ProductCategory;
   productName: string;
@@ -42,6 +46,14 @@ export type AgencyOpenContractRequestItem = {
   productId: string | null;
   pickupRegion: string;
   pickupAddress: string;
+  contractType: ContractRequestContractType;
+  pickupDateFrom: string | null;
+  pickupDateTo: string | null;
+  deliveryDateFrom: string | null;
+  deliveryDateTo: string | null;
+  recurringPickupCycle: RecurringPickupCycle | null;
+  recurringPickupDaysOfWeek: DayOfWeek[];
+  recurringPickupDayOfMonth: number | null;
   monthlyVolume: number;
   productCategory: ProductCategory;
   productName: string;
@@ -57,14 +69,40 @@ export type AgencyOpenContractRequestItem = {
   status: ContractRequestStatus;
 };
 
+export type AgencyOpenRequestScope = "ALL" | "NEARBY";
+
+export type AgencyOpenRequestFilters = {
+  scope?: AgencyOpenRequestScope;
+  pickupRegion?: string;
+  name?: string;
+  category?: ProductCategory;
+  boxSize?: BoxSize;
+  coldChainType?: ColdChainType;
+  saturdayDeliveryRequired?: boolean;
+  returnRequired?: boolean;
+  minTargetUnitPrice?: number;
+  maxTargetUnitPrice?: number;
+  vendorName?: string;
+};
+
 export type AgencyProposalRequest = {
   unitPrice: number;
+  items: AgencyProposalLinePriceRequest[];
   pickupStartTime: string | null;
   pickupEndTime: string | null;
   saturdayDeliveryAvailable: boolean;
   returnAvailable: boolean;
   coldChainType: ColdChainType;
   memo: string | null;
+};
+
+export type AgencyProposalLinePriceRequest = {
+  contractRequestItemId: string;
+  unitPrice: number;
+};
+
+export type AgencyProposalLinePriceItem = AgencyProposalLinePriceRequest & {
+  itemId: string;
 };
 
 export type AgencySummary = {
@@ -103,7 +141,7 @@ export type AgencyProposalStatus =
   | "REJECTED"
   | string;
 
-export type AgencyProposalItem = AgencyProposalRequest & {
+export type AgencyProposalItem = Omit<AgencyProposalRequest, "items"> & {
   proposalId: string;
   contractRequestId: string;
   vendorId: string;
@@ -112,6 +150,7 @@ export type AgencyProposalItem = AgencyProposalRequest & {
   finalUnitPrice: number | null;
   pendingNegotiationId: string | null;
   nextSequence: number;
+  items: AgencyProposalLinePriceItem[];
   status: AgencyProposalStatus;
   agency: AgencySummary | null;
   vendor: AgencyVendorSummary | null;
@@ -120,14 +159,31 @@ export type AgencyProposalItem = AgencyProposalRequest & {
 export function getAgencyOpenContractRequests({
   page = 0,
   size = 20,
+  ...filters
 }: {
   page?: number;
   size?: number;
-} = {}): Promise<PageResponse<AgencyOpenContractRequestItem>> {
+} & AgencyOpenRequestFilters = {}): Promise<PageResponse<AgencyOpenContractRequestItem>> {
   const searchParams = new URLSearchParams({
     page: String(page),
     size: String(size),
   });
+
+  appendSearchParam(searchParams, "scope", filters.scope);
+  appendSearchParam(searchParams, "pickupRegion", filters.pickupRegion);
+  appendSearchParam(searchParams, "name", filters.name);
+  appendSearchParam(searchParams, "category", filters.category);
+  appendSearchParam(searchParams, "boxSize", filters.boxSize);
+  appendSearchParam(searchParams, "coldChainType", filters.coldChainType);
+  appendSearchParam(
+    searchParams,
+    "saturdayDeliveryRequired",
+    filters.saturdayDeliveryRequired,
+  );
+  appendSearchParam(searchParams, "returnRequired", filters.returnRequired);
+  appendSearchParam(searchParams, "minTargetUnitPrice", filters.minTargetUnitPrice);
+  appendSearchParam(searchParams, "maxTargetUnitPrice", filters.maxTargetUnitPrice);
+  appendSearchParam(searchParams, "vendorName", filters.vendorName);
 
   return apiFetch(`/api/v1/contract-requests/open?${searchParams.toString()}`);
 }
@@ -140,6 +196,14 @@ export function submitAgencyProposal(
     method: "POST",
     credentials: "include",
     body: JSON.stringify(request),
+  });
+}
+
+export function getAgencyContractRequest(
+  contractRequestId: string,
+): Promise<AgencyOpenContractRequestItem> {
+  return apiFetch(`/api/v1/contract-requests/${contractRequestId}`, {
+    credentials: "include",
   });
 }
 
@@ -193,4 +257,16 @@ export function getAgencyContracts({
   return apiFetch(`/api/v1/contracts/agency/me?${searchParams.toString()}`, {
     credentials: "include",
   });
+}
+
+function appendSearchParam(
+  searchParams: URLSearchParams,
+  key: string,
+  value: boolean | number | string | null | undefined,
+) {
+  if (value === null || value === undefined || value === "") {
+    return;
+  }
+
+  searchParams.set(key, String(value));
 }

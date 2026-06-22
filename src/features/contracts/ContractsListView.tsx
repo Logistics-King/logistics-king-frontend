@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PageResponse } from "@/src/shared/api/types";
+import type { DayOfWeek, PageResponse } from "@/src/shared/api/types";
 import type { ContractListItem } from "./types";
 
 type ContractsListViewProps = {
@@ -27,6 +27,16 @@ const boxSizeLabels: Record<ContractListItem["boxSize"], string> = {
   SIZE_140: "140사이즈",
   SIZE_160: "160사이즈",
   CUSTOM: "기타",
+};
+
+const dayOfWeekLabels: Record<DayOfWeek, string> = {
+  MONDAY: "월",
+  TUESDAY: "화",
+  WEDNESDAY: "수",
+  THURSDAY: "목",
+  FRIDAY: "금",
+  SATURDAY: "토",
+  SUNDAY: "일",
 };
 
 export function ContractsListView({
@@ -186,6 +196,7 @@ function ContractCard({
         <InfoItem label="총 박스" value={`${formatNumber(totalBoxQuantity)}개`} />
         <InfoItem label="총 낱개" value={`${formatNumber(totalItemQuantity)}개`} />
         <InfoItem label="픽업 시간" value={formatPickupTime(contract)} />
+        <InfoItem label="계약 일정" value={formatContractSchedule(contract)} />
         <InfoItem label="온도 관리" value={coldChainTypeLabels[contract.coldChainType]} />
         <InfoItem label="토요일 배송" value={contract.saturdayDeliveryAvailable ? "가능" : "불가"} />
         <InfoItem label="반품" value={contract.returnAvailable ? "가능" : "불가"} />
@@ -275,6 +286,35 @@ function formatPickupTime(contract: ContractListItem): string {
   }
 
   return `${contract.pickupStartTime ?? "-"} ~ ${contract.pickupEndTime ?? "-"}`;
+}
+
+function formatContractSchedule(contract: ContractListItem): string {
+  if (contract.contractType === "RECURRING") {
+    if (contract.recurringPickupCycle === "WEEKLY") {
+      const days =
+        contract.recurringPickupDaysOfWeek.length > 0
+          ? contract.recurringPickupDaysOfWeek.map((day) => dayOfWeekLabels[day]).join(", ")
+          : "-";
+
+      return `정기 / 매주 ${days}`;
+    }
+
+    return `정기 / 매월 ${contract.recurringPickupDayOfMonth ?? "-"}일`;
+  }
+
+  return [
+    `단건`,
+    `회수 ${formatDateRange(contract.pickupDateFrom, contract.pickupDateTo)}`,
+    `배송 ${formatDateRange(contract.deliveryDateFrom, contract.deliveryDateTo)}`,
+  ].join(" / ");
+}
+
+function formatDateRange(from: string | null | undefined, to: string | null | undefined): string {
+  if (!from && !to) {
+    return "-";
+  }
+
+  return `${from ?? "-"} ~ ${to ?? "-"}`;
 }
 
 function sumContractLineQuantity(

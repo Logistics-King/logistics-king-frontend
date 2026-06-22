@@ -2,11 +2,19 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { ApiError } from "@/src/shared/api/client";
-import type { BoxSize, ColdChainType, PageResponse, ProductCategory } from "@/src/shared/api/types";
+import type {
+  BoxSize,
+  ColdChainType,
+  DayOfWeek,
+  PageResponse,
+  ProductCategory,
+} from "@/src/shared/api/types";
 import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
 import {
   getAgencyOpenContractRequests,
   submitAgencyProposal,
+  type AgencyOpenRequestFilters,
+  type AgencyOpenRequestScope,
   type AgencyContractRequestLineItem,
   type AgencyOpenContractRequestItem,
   type AgencyProposalRequest,
@@ -16,12 +24,48 @@ const pageSize = 10;
 
 type ProposalFormState = {
   unitPrice: string;
+  items: ProposalLinePriceFormState[];
   pickupStartTime: string;
   pickupEndTime: string;
   saturdayDeliveryAvailable: boolean;
   returnAvailable: boolean;
   coldChainType: ColdChainType;
   memo: string;
+};
+
+type ProposalLinePriceFormState = {
+  contractRequestItemId: string;
+  unitPrice: string;
+};
+
+type OpenRequestFilterFormState = {
+  scope: AgencyOpenRequestScope;
+  pickupRegion: string;
+  name: string;
+  category: "" | ProductCategory;
+  boxSize: "" | BoxSize;
+  coldChainType: "" | ColdChainType;
+  saturdayDeliveryRequired: BooleanFilterValue;
+  returnRequired: BooleanFilterValue;
+  minTargetUnitPrice: string;
+  maxTargetUnitPrice: string;
+  vendorName: string;
+};
+
+type BooleanFilterValue = "" | "true" | "false";
+
+const initialFilterForm: OpenRequestFilterFormState = {
+  scope: "ALL",
+  pickupRegion: "",
+  name: "",
+  category: "",
+  boxSize: "",
+  coldChainType: "",
+  saturdayDeliveryRequired: "",
+  returnRequired: "",
+  minTargetUnitPrice: "",
+  maxTargetUnitPrice: "",
+  vendorName: "",
 };
 
 const productCategoryLabels: Record<ProductCategory, string> = {
@@ -50,6 +94,16 @@ const coldChainTypeLabels: Record<ColdChainType, string> = {
   FROZEN: "냉동",
 };
 
+const dayOfWeekLabels: Record<DayOfWeek, string> = {
+  MONDAY: "월",
+  TUESDAY: "화",
+  WEDNESDAY: "수",
+  THURSDAY: "목",
+  FRIDAY: "금",
+  SATURDAY: "토",
+  SUNDAY: "일",
+};
+
 // 대리점의 "일감 조회" 화면입니다.
 // 일감 기준 API는 GET /api/v1/contract-requests/open 입니다.
 // 배송 물품 상세는 top-level 대표 필드가 아니라 request.items[] 기준으로 렌더링합니다.
@@ -57,6 +111,9 @@ export function AgencyOpenRequestsView() {
   const [page, setPage] = useState(0);
   const [pageResponse, setPageResponse] =
     useState<PageResponse<AgencyOpenContractRequestItem> | null>(null);
+  const [filters, setFilters] = useState<OpenRequestFilterFormState>(initialFilterForm);
+  const [appliedFilters, setAppliedFilters] =
+    useState<OpenRequestFilterFormState>(initialFilterForm);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [needsAgencyProfile, setNeedsAgencyProfile] = useState(false);
@@ -75,7 +132,11 @@ export function AgencyOpenRequestsView() {
       setNeedsAgencyProfile(false);
 
       try {
-        const response = await getAgencyOpenContractRequests({ page, size: pageSize });
+        const response = await getAgencyOpenContractRequests({
+          page,
+          size: pageSize,
+          ...toOpenRequestFilters(appliedFilters),
+        });
 
         if (active) {
           setPageResponse(response);
@@ -98,12 +159,35 @@ export function AgencyOpenRequestsView() {
     return () => {
       active = false;
     };
-  }, [page]);
+  }, [appliedFilters, page]);
+
+  function handleFilterSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPage(0);
+    setAppliedFilters(filters);
+  }
+
+  function resetFilters() {
+    setFilters(initialFilterForm);
+    setAppliedFilters(initialFilterForm);
+    setPage(0);
+  }
 
   function openProposalForm(request: AgencyOpenContractRequestItem) {
+    const itemPrices = request.items.map((item) => ({
+      contractRequestItemId: getRequestItemId(item),
+      unitPrice:
+        item.targetUnitPrice === null
+          ? request.targetUnitPrice === null
+            ? ""
+            : String(request.targetUnitPrice)
+          : String(item.targetUnitPrice),
+    }));
+
     setSelectedRequest(request);
     setProposalForm({
-      unitPrice: request.targetUnitPrice === null ? "" : String(request.targetUnitPrice),
+      unitPrice: String(calculateWeightedUnitPrice(itemPrices, request.items)),
+      items: itemPrices,
       pickupStartTime: request.pickupStartTime ?? "",
       pickupEndTime: request.pickupEndTime ?? "",
       saturdayDeliveryAvailable: request.saturdayDeliveryRequired,
@@ -132,6 +216,17 @@ export function AgencyOpenRequestsView() {
 
     if (!unitPrice || unitPrice < 0) {
       setErrorMessage("제안 단가는 1원 이상 입력해야 합니다.");
+      return;
+    }
+
+    const invalidLine = proposalForm.items.find((item) => {
+      const lineUnitPrice = Number(normalizeIntegerInput(item.unitPrice));
+
+      return !lineUnitPrice || lineUnitPrice < 1;
+    });
+
+    if (invalidLine) {
+      setErrorMessage("배송 물품 라인별 단가는 모두 1원 이상 입력해야 합니다.");
       return;
     }
 
@@ -165,6 +260,169 @@ export function AgencyOpenRequestsView() {
           </p>
         </div>
       </div>
+
+      <form
+        className="grid gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+        onSubmit={handleFilterSubmit}
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-950">일감 필터</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              인근 일감, 품목 조건, 화주명, 단가 범위로 조회합니다.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="h-10 rounded-md border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:border-slate-500"
+              onClick={resetFilters}
+              type="button"
+            >
+              초기화
+            </button>
+            <button
+              className="h-10 rounded-md bg-[#071f46] px-4 text-sm font-bold text-white transition hover:bg-[#0a2d63]"
+              type="submit"
+            >
+              조회
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <Field label="조회 범위">
+            <select
+              className={inputClassName}
+              value={filters.scope}
+              onChange={(event) =>
+                setFilters({ ...filters, scope: event.target.value as AgencyOpenRequestScope })
+              }
+            >
+              <option value="ALL">전체 일감</option>
+              <option value="NEARBY">인근 일감</option>
+            </select>
+          </Field>
+          <Field label="픽업 지역">
+            <input
+              className={inputClassName}
+              placeholder="안산"
+              value={filters.pickupRegion}
+              onChange={(event) => setFilters({ ...filters, pickupRegion: event.target.value })}
+            />
+          </Field>
+          <Field label="화주명">
+            <input
+              className={inputClassName}
+              placeholder="안산 의류상사"
+              value={filters.vendorName}
+              onChange={(event) => setFilters({ ...filters, vendorName: event.target.value })}
+            />
+          </Field>
+          <Field label="품목명">
+            <input
+              className={inputClassName}
+              placeholder="의류"
+              value={filters.name}
+              onChange={(event) => setFilters({ ...filters, name: event.target.value })}
+            />
+          </Field>
+          <Field label="카테고리">
+            <select
+              className={inputClassName}
+              value={filters.category}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  category: event.target.value as "" | ProductCategory,
+                })
+              }
+            >
+              <option value="">전체</option>
+              {Object.entries(productCategoryLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="박스 규격">
+            <select
+              className={inputClassName}
+              value={filters.boxSize}
+              onChange={(event) =>
+                setFilters({ ...filters, boxSize: event.target.value as "" | BoxSize })
+              }
+            >
+              <option value="">전체</option>
+              {Object.entries(boxSizeLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="온도 관리">
+            <select
+              className={inputClassName}
+              value={filters.coldChainType}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  coldChainType: event.target.value as "" | ColdChainType,
+                })
+              }
+            >
+              <option value="">전체</option>
+              {Object.entries(coldChainTypeLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="희망 단가 최소">
+            <input
+              className={inputClassName}
+              inputMode="numeric"
+              placeholder="1,800"
+              value={formatIntegerInput(filters.minTargetUnitPrice)}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  minTargetUnitPrice: normalizeIntegerInput(event.target.value),
+                })
+              }
+            />
+          </Field>
+          <Field label="희망 단가 최대">
+            <input
+              className={inputClassName}
+              inputMode="numeric"
+              placeholder="2,500"
+              value={formatIntegerInput(filters.maxTargetUnitPrice)}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  maxTargetUnitPrice: normalizeIntegerInput(event.target.value),
+                })
+              }
+            />
+          </Field>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <BooleanFilterField
+            label="토요일 배송 필요"
+            value={filters.saturdayDeliveryRequired}
+            onChange={(value) => setFilters({ ...filters, saturdayDeliveryRequired: value })}
+          />
+          <BooleanFilterField
+            label="반품 필요"
+            value={filters.returnRequired}
+            onChange={(value) => setFilters({ ...filters, returnRequired: value })}
+          />
+        </div>
+      </form>
 
       {needsAgencyProfile ? <ProfileRequiredNotice role="AGENCY" /> : null}
 
@@ -234,6 +492,23 @@ export function AgencyOpenRequestsView() {
           form={proposalForm}
           isSubmitting={isSubmittingProposal}
           onChange={setProposalForm}
+          onLinePriceChange={(contractRequestItemId, unitPrice) =>
+            setProposalForm((current) =>
+              current
+                ? syncRepresentativeUnitPrice(
+                    {
+                      ...current,
+                      items: current.items.map((item) =>
+                        item.contractRequestItemId === contractRequestItemId
+                          ? { ...item, unitPrice }
+                          : item,
+                      ),
+                    },
+                    selectedRequest.items,
+                  )
+                : current,
+            )
+          }
           onClose={closeProposalForm}
           onSubmit={handleSubmitProposal}
           request={selectedRequest}
@@ -283,6 +558,7 @@ function ContractRequestCard({
         <InfoItem label="총 박스" value={formatQuantity(sumBoxQuantity(request.items))} />
         <InfoItem label="총 낱개" value={formatQuantity(sumItemQuantity(request.items))} />
         <InfoItem label="픽업 시간" value={formatPickupTime(request)} />
+        <InfoItem label="계약 일정" value={formatContractSchedule(request)} />
         <InfoItem label="희망 단가" value={formatCurrency(request.targetUnitPrice)} />
       </div>
 
@@ -311,6 +587,7 @@ function ProposalModal({
   isSubmitting,
   onChange,
   onClose,
+  onLinePriceChange,
   onSubmit,
   request,
 }: {
@@ -318,6 +595,7 @@ function ProposalModal({
   isSubmitting: boolean;
   onChange: (form: ProposalFormState) => void;
   onClose: () => void;
+  onLinePriceChange: (contractRequestItemId: string, unitPrice: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   request: AgencyOpenContractRequestItem;
 }) {
@@ -346,11 +624,10 @@ function ProposalModal({
           <Field label="제안 단가">
             <input
               className={inputClassName}
+              disabled
               inputMode="numeric"
               value={formatIntegerInput(form.unitPrice)}
-              onChange={(event) =>
-                onChange({ ...form, unitPrice: normalizeIntegerInput(event.target.value) })
-              }
+              readOnly
             />
           </Field>
           <Field label="온도 관리">
@@ -384,6 +661,29 @@ function ProposalModal({
               onChange={(event) => onChange({ ...form, pickupEndTime: event.target.value })}
             />
           </Field>
+        </div>
+
+        <div className="grid gap-3 rounded-lg border border-slate-200 p-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-950">배송 물품 라인별 단가</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              각 배송 물품 라인의 단가를 입력하면 대표 제안 단가는 박스 수량 기준으로 자동 계산됩니다.
+            </p>
+          </div>
+          {request.items.map((item, index) => (
+            <ProposalLinePriceField
+              index={index}
+              item={item}
+              key={getRequestItemId(item)}
+              unitPrice={
+                form.items.find(
+                  (priceItem) => priceItem.contractRequestItemId === getRequestItemId(item),
+                )
+                  ?.unitPrice ?? ""
+              }
+              onChange={(unitPrice) => onLinePriceChange(getRequestItemId(item), unitPrice)}
+            />
+          ))}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -452,6 +752,30 @@ function BooleanField({
   );
 }
 
+function BooleanFilterField({
+  label,
+  onChange,
+  value,
+}: {
+  label: string;
+  onChange: (value: BooleanFilterValue) => void;
+  value: BooleanFilterValue;
+}) {
+  return (
+    <Field label={label}>
+      <select
+        className={inputClassName}
+        value={value}
+        onChange={(event) => onChange(event.target.value as BooleanFilterValue)}
+      >
+        <option value="">전체</option>
+        <option value="true">예</option>
+        <option value="false">아니오</option>
+      </select>
+    </Field>
+  );
+}
+
 function LineItemCard({ index, item }: { index: number; item: AgencyContractRequestLineItem }) {
   return (
     <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
@@ -483,6 +807,39 @@ function LineItemCard({ index, item }: { index: number; item: AgencyContractRequ
         <Flag active={item.liquid} label="액체" />
         <Flag active={item.freshFood} label="신선식품" />
       </div>
+    </div>
+  );
+}
+
+function ProposalLinePriceField({
+  index,
+  item,
+  onChange,
+  unitPrice,
+}: {
+  index: number;
+  item: AgencyContractRequestLineItem;
+  onChange: (unitPrice: string) => void;
+  unitPrice: string;
+}) {
+  return (
+    <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 md:grid-cols-[1fr_180px] md:items-center">
+      <div>
+        <p className="text-sm font-bold text-slate-950">
+          라인 {index + 1}. {item.productName}
+        </p>
+        <p className="mt-1 text-xs font-semibold text-slate-500">
+          {boxSizeLabels[item.boxSize]} / {formatLineQuantity(item)} / 희망{" "}
+          {formatCurrency(item.targetUnitPrice)}
+        </p>
+      </div>
+      <input
+        className={inputClassName}
+        inputMode="numeric"
+        placeholder="라인 단가"
+        value={formatIntegerInput(unitPrice)}
+        onChange={(event) => onChange(normalizeIntegerInput(event.target.value))}
+      />
     </div>
   );
 }
@@ -526,6 +883,35 @@ function formatPickupTime(request: AgencyOpenContractRequestItem): string {
   return `${request.pickupStartTime ?? "-"} ~ ${request.pickupEndTime ?? "-"}`;
 }
 
+function formatContractSchedule(request: AgencyOpenContractRequestItem): string {
+  if (request.contractType === "RECURRING") {
+    if (request.recurringPickupCycle === "WEEKLY") {
+      const days =
+        request.recurringPickupDaysOfWeek.length > 0
+          ? request.recurringPickupDaysOfWeek.map((day) => dayOfWeekLabels[day]).join(", ")
+          : "-";
+
+      return `정기 / 매주 ${days}`;
+    }
+
+    return `정기 / 매월 ${request.recurringPickupDayOfMonth ?? "-"}일`;
+  }
+
+  return [
+    `단건`,
+    `회수 ${formatDateRange(request.pickupDateFrom, request.pickupDateTo)}`,
+    `배송 ${formatDateRange(request.deliveryDateFrom, request.deliveryDateTo)}`,
+  ].join(" / ");
+}
+
+function formatDateRange(from: string | null | undefined, to: string | null | undefined): string {
+  if (!from && !to) {
+    return "-";
+  }
+
+  return `${from ?? "-"} ~ ${to ?? "-"}`;
+}
+
 function formatCurrency(value: number | null): string {
   return value === null ? "-" : `${value.toLocaleString("ko-KR")}원`;
 }
@@ -536,6 +922,15 @@ function formatWeight(value: number | null): string {
 
 function formatQuantity(value: number): string {
   return `${value.toLocaleString("ko-KR")}개`;
+}
+
+function formatLineQuantity(item: AgencyContractRequestLineItem): string {
+  const quantities = [
+    item.boxQuantity > 0 ? `박스 ${formatNumber(item.boxQuantity)}개` : "",
+    item.itemQuantity > 0 ? `낱개 ${formatNumber(item.itemQuantity)}개` : "",
+  ].filter(Boolean);
+
+  return quantities.length > 0 ? quantities.join(" / ") : "-";
 }
 
 function formatNumber(value: number): string {
@@ -556,6 +951,10 @@ function formatContractRequestStatus(status: AgencyOpenContractRequestItem["stat
 function toProposalRequest(form: ProposalFormState): AgencyProposalRequest {
   return {
     unitPrice: Number(normalizeIntegerInput(form.unitPrice)),
+    items: form.items.map((item) => ({
+      contractRequestItemId: item.contractRequestItemId,
+      unitPrice: Number(normalizeIntegerInput(item.unitPrice)),
+    })),
     pickupStartTime: blankToNull(form.pickupStartTime),
     pickupEndTime: blankToNull(form.pickupEndTime),
     saturdayDeliveryAvailable: form.saturdayDeliveryAvailable,
@@ -563,6 +962,55 @@ function toProposalRequest(form: ProposalFormState): AgencyProposalRequest {
     coldChainType: form.coldChainType,
     memo: blankToNull(form.memo),
   };
+}
+
+function syncRepresentativeUnitPrice(
+  form: ProposalFormState,
+  requestItems: AgencyContractRequestLineItem[],
+): ProposalFormState {
+  return {
+    ...form,
+    unitPrice: String(calculateWeightedUnitPrice(form.items, requestItems)),
+  };
+}
+
+function calculateWeightedUnitPrice(
+  priceItems: ProposalLinePriceFormState[],
+  requestItems: AgencyContractRequestLineItem[],
+): number {
+  const priceByRequestItemId = new Map(
+    priceItems.map((item) => [
+      item.contractRequestItemId,
+      Number(normalizeIntegerInput(item.unitPrice)),
+    ]),
+  );
+  let totalBoxQuantity = 0;
+  let weightedTotal = 0;
+
+  for (const item of requestItems) {
+    const unitPrice = priceByRequestItemId.get(getRequestItemId(item));
+
+    if (!unitPrice || unitPrice < 1 || item.boxQuantity <= 0) {
+      continue;
+    }
+
+    totalBoxQuantity += item.boxQuantity;
+    weightedTotal += unitPrice * item.boxQuantity;
+  }
+
+  if (totalBoxQuantity === 0) {
+    const firstValidPrice = priceItems
+      .map((item) => Number(normalizeIntegerInput(item.unitPrice)))
+      .find((unitPrice) => unitPrice > 0);
+
+    return firstValidPrice ?? 0;
+  }
+
+  return Math.round(weightedTotal / totalBoxQuantity);
+}
+
+function getRequestItemId(item: AgencyContractRequestLineItem): string {
+  return item.contractRequestItemId ?? item.itemId;
 }
 
 function blankToNull(value: string): string | null {
@@ -577,6 +1025,48 @@ function normalizeIntegerInput(value: string): string {
 
 function formatIntegerInput(value: string): string {
   return value ? Number(value).toLocaleString("ko-KR") : "";
+}
+
+function toOpenRequestFilters(form: OpenRequestFilterFormState): AgencyOpenRequestFilters {
+  return {
+    scope: form.scope,
+    pickupRegion: blankToUndefined(form.pickupRegion),
+    name: blankToUndefined(form.name),
+    category: form.category || undefined,
+    boxSize: form.boxSize || undefined,
+    coldChainType: form.coldChainType || undefined,
+    saturdayDeliveryRequired: booleanFilterToValue(form.saturdayDeliveryRequired),
+    returnRequired: booleanFilterToValue(form.returnRequired),
+    minTargetUnitPrice: numberFilterToValue(form.minTargetUnitPrice),
+    maxTargetUnitPrice: numberFilterToValue(form.maxTargetUnitPrice),
+    vendorName: blankToUndefined(form.vendorName),
+  };
+}
+
+function blankToUndefined(value: string): string | undefined {
+  const trimmed = value.trim();
+
+  return trimmed ? trimmed : undefined;
+}
+
+function booleanFilterToValue(value: BooleanFilterValue): boolean | undefined {
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  return undefined;
+}
+
+function numberFilterToValue(value: string): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return Number(value);
 }
 
 function getErrorMessage(error: unknown): string {

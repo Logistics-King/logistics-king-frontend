@@ -37,6 +37,19 @@ export type ProductCategory =
 
 export type ColdChainType = "NONE" | "REFRIGERATED" | "FROZEN";
 
+export type ContractRequestContractType = "SINGLE" | "RECURRING";
+
+export type RecurringPickupCycle = "WEEKLY" | "MONTHLY";
+
+export type DayOfWeek =
+  | "MONDAY"
+  | "TUESDAY"
+  | "WEDNESDAY"
+  | "THURSDAY"
+  | "FRIDAY"
+  | "SATURDAY"
+  | "SUNDAY";
+
 export type BoxSize =
   | "SIZE_60"
   | "SIZE_80"

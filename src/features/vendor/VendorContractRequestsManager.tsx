@@ -4,7 +4,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/src/shared/api/client";
-import type { BoxSize, ColdChainType, PageResponse, ProductCategory } from "@/src/shared/api/types";
+import type {
+  BoxSize,
+  ColdChainType,
+  ContractRequestContractType,
+  DayOfWeek,
+  PageResponse,
+  ProductCategory,
+  RecurringPickupCycle,
+} from "@/src/shared/api/types";
 import { getVendorProfile, type VendorProfile } from "@/src/features/profile/api";
 import { ProposalNegotiationPanel } from "@/src/features/proposals/ProposalNegotiationPanel";
 import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
@@ -30,6 +38,14 @@ type ContractRequestFormState = {
   approverId: string;
   pickupRegion: string;
   pickupAddress: string;
+  contractType: ContractRequestContractType;
+  pickupDateFrom: string;
+  pickupDateTo: string;
+  deliveryDateFrom: string;
+  deliveryDateTo: string;
+  recurringPickupCycle: RecurringPickupCycle;
+  recurringPickupDaysOfWeek: DayOfWeek[];
+  recurringPickupDayOfMonth: string;
   pickupStartTime: string;
   pickupEndTime: string;
   saturdayDeliveryRequired: boolean;
@@ -74,6 +90,14 @@ const initialFormState: ContractRequestFormState = {
   approverId: "",
   pickupRegion: "",
   pickupAddress: "",
+  contractType: "SINGLE",
+  pickupDateFrom: "",
+  pickupDateTo: "",
+  deliveryDateFrom: "",
+  deliveryDateTo: "",
+  recurringPickupCycle: "WEEKLY",
+  recurringPickupDaysOfWeek: [],
+  recurringPickupDayOfMonth: "",
   pickupStartTime: "",
   pickupEndTime: "",
   saturdayDeliveryRequired: false,
@@ -106,6 +130,26 @@ const coldChainOptions: Array<{ value: ColdChainType; label: string }> = [
   { value: "NONE", label: "일반" },
   { value: "REFRIGERATED", label: "냉장" },
   { value: "FROZEN", label: "냉동" },
+];
+
+const contractTypeOptions: Array<{ value: ContractRequestContractType; label: string }> = [
+  { value: "SINGLE", label: "단건" },
+  { value: "RECURRING", label: "정기" },
+];
+
+const recurringPickupCycleOptions: Array<{ value: RecurringPickupCycle; label: string }> = [
+  { value: "WEEKLY", label: "매주" },
+  { value: "MONTHLY", label: "매월" },
+];
+
+const dayOfWeekOptions: Array<{ value: DayOfWeek; label: string }> = [
+  { value: "MONDAY", label: "월" },
+  { value: "TUESDAY", label: "화" },
+  { value: "WEDNESDAY", label: "수" },
+  { value: "THURSDAY", label: "목" },
+  { value: "FRIDAY", label: "금" },
+  { value: "SATURDAY", label: "토" },
+  { value: "SUNDAY", label: "일" },
 ];
 
 export function VendorContractRequestCreateView() {
@@ -463,6 +507,125 @@ export function VendorContractRequestsManager({
           </div>
         </div>
 
+        <div className="mt-5 grid gap-4 rounded-lg border border-slate-200 p-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-950">계약 일정</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              단건 계약은 희망 기간을, 정기 계약은 반복 회수 조건을 입력합니다.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {contractTypeOptions.map((option) => (
+              <button
+                className={`h-10 rounded-md border px-4 text-sm font-bold transition ${
+                  form.contractType === option.value
+                    ? "border-[#071f46] bg-[#071f46] text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:border-slate-500"
+                }`}
+                key={option.value}
+                onClick={() => setForm({ ...form, contractType: option.value })}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {form.contractType === "SINGLE" ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <DateRangeField
+                from={form.pickupDateFrom}
+                label="회수 희망 기간"
+                to={form.pickupDateTo}
+                onFromChange={(value) => setForm({ ...form, pickupDateFrom: value })}
+                onToChange={(value) => setForm({ ...form, pickupDateTo: value })}
+              />
+              <DateRangeField
+                from={form.deliveryDateFrom}
+                label="배송 희망 기간"
+                to={form.deliveryDateTo}
+                onFromChange={(value) => setForm({ ...form, deliveryDateFrom: value })}
+                onToChange={(value) => setForm({ ...form, deliveryDateTo: value })}
+              />
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="정기 회수 주기">
+                <select
+                  className={inputClassName}
+                  value={form.recurringPickupCycle}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      recurringPickupCycle: event.target.value as RecurringPickupCycle,
+                    })
+                  }
+                >
+                  {recurringPickupCycleOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              {form.recurringPickupCycle === "WEEKLY" ? (
+                <Field label="매주 회수 요일">
+                  <div className="flex flex-wrap gap-2">
+                    {dayOfWeekOptions.map((option) => {
+                      const checked = form.recurringPickupDaysOfWeek.includes(option.value);
+
+                      return (
+                        <button
+                          className={`h-10 min-w-10 rounded-md border px-3 text-sm font-bold transition ${
+                            checked
+                              ? "border-[#071f46] bg-[#071f46] text-white"
+                              : "border-slate-300 bg-white text-slate-700 hover:border-slate-500"
+                          }`}
+                          key={option.value}
+                          onClick={() =>
+                            setForm({
+                              ...form,
+                              recurringPickupDaysOfWeek: toggleDayOfWeek(
+                                form.recurringPickupDaysOfWeek,
+                                option.value,
+                              ),
+                            })
+                          }
+                          type="button"
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
+              ) : (
+                <Field label="매월 회수일">
+                  <input
+                    className={inputClassName}
+                    inputMode="numeric"
+                    max={31}
+                    min={1}
+                    placeholder="10"
+                    value={form.recurringPickupDayOfMonth}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        recurringPickupDayOfMonth: normalizeIntegerInput(event.target.value).slice(
+                          0,
+                          2,
+                        ),
+                      })
+                    }
+                  />
+                </Field>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <BooleanField
             checked={form.saturdayDeliveryRequired}
@@ -806,6 +969,7 @@ function ContractRequestList({
               type="button"
             >
               <Info label="대표 품목" value={request.productName} />
+              <Info label="계약 유형" value={formatContractSchedule(request)} />
               <Info label="배송 라인" value={`${formatNumber(request.items.length)}개`} />
               <Info label="총 박스" value={`${formatNumber(sumBoxQuantity(request.items))}개`} />
               <div>
@@ -955,6 +1119,7 @@ function ContractRequestDetailPanel({
               </div>
               <Info label="픽업 주소" value={request.pickupAddress || "-"} />
               <Info label="픽업 시간" value={formatPickupTime(request)} />
+              <Info label="회수/배송 일정" value={formatContractDateRange(request)} />
               <Info label="토요일 배송" value={request.saturdayDeliveryRequired ? "필요" : "불필요"} />
               <Info label="반품 처리" value={request.returnRequired ? "필요" : "불필요"} />
             </div>
@@ -996,6 +1161,7 @@ function ContractRequestDetailPanel({
                       onAccept={onAcceptProposal}
                       onNegotiationChanged={() => onProposalChanged(request.contractRequestId)}
                       proposal={proposal}
+                      requestItems={request.items}
                     />
                   ))}
                 </div>
@@ -1030,12 +1196,14 @@ function ProposalCard({
   onAccept,
   onNegotiationChanged,
   proposal,
+  requestItems,
 }: {
   canAccept: boolean;
   isAccepting: boolean;
   onAccept: (proposal: VendorProposalItem) => void;
   onNegotiationChanged: () => void | Promise<void>;
   proposal: VendorProposalItem;
+  requestItems: VendorContractRequestLine[];
 }) {
   const acceptEnabled =
     canAccept &&
@@ -1057,12 +1225,18 @@ function ProposalCard({
       {proposal.memo ? (
         <Info label="제안 메모" value={proposal.memo} />
       ) : null}
+      {(proposal.items ?? []).length > 0 ? (
+        <ProposalLinePrices proposal={proposal} requestItems={requestItems} />
+      ) : null}
       <ProposalNegotiationPanel
+        key={getProposalNegotiationPanelKey(proposal)}
         myRole="VENDOR"
         onChanged={onNegotiationChanged}
         pendingNegotiationId={proposal.pendingNegotiationId}
+        proposalItems={proposal.items ?? []}
         proposalId={proposal.proposalId}
         proposalStatus={proposal.status}
+        requestItems={requestItems.map(toNegotiationRequestItemContext)}
       />
       <div className="flex justify-end">
         <button
@@ -1076,6 +1250,74 @@ function ProposalCard({
       </div>
     </article>
   );
+}
+
+function ProposalLinePrices({
+  proposal,
+  requestItems,
+}: {
+  proposal: VendorProposalItem;
+  requestItems: VendorContractRequestLine[];
+}) {
+  const proposalItems = proposal.items ?? [];
+  const requestItemById = new Map(
+    requestItems.map((item) => [getVendorContractRequestItemId(item), item]),
+  );
+
+  return (
+    <div className="overflow-x-auto rounded-md border border-slate-200">
+      <div className="min-w-[520px]">
+        <div className="grid grid-cols-[1fr_0.7fr] gap-3 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
+          <span>같은 계약의 배송 품목 라인</span>
+          <span>제안 단가</span>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {proposalItems.map((item, index) => {
+            const requestItem = requestItemById.get(item.contractRequestItemId);
+
+            return (
+              <div
+                className="grid grid-cols-[1fr_0.7fr] gap-3 px-3 py-3 text-sm text-slate-700"
+                key={item.itemId}
+              >
+                <span className="font-semibold text-slate-950">
+                  배송 품목 라인 {index + 1}
+                  {requestItem
+                    ? ` · ${requestItem.productName} / ${formatBoxSize(
+                        requestItem.boxSize,
+                      )} / ${formatLineQuantity(requestItem)}`
+                    : ""}
+                </span>
+                <span>{formatCurrency(item.unitPrice)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getProposalNegotiationPanelKey(proposal: VendorProposalItem): string {
+  return [
+    proposal.proposalId,
+    proposal.pendingNegotiationId ?? "none",
+    ...(proposal.items ?? []).map((item) => `${item.contractRequestItemId}:${item.unitPrice}`),
+  ].join("|");
+}
+
+function toNegotiationRequestItemContext(item: VendorContractRequestLine) {
+  return {
+    contractRequestItemId: getVendorContractRequestItemId(item),
+    productName: item.productName,
+    boxSize: formatBoxSize(item.boxSize),
+    boxQuantity: item.boxQuantity,
+    itemQuantity: item.itemQuantity,
+  };
+}
+
+function getVendorContractRequestItemId(item: VendorContractRequestLine): string {
+  return item.contractRequestItemId ?? item.itemId ?? "";
 }
 
 function StatusBadge({ status }: { status: VendorContractRequestDetail["status"] }) {
@@ -1099,6 +1341,41 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-sm font-semibold text-slate-700">{label}</span>
       {children}
     </label>
+  );
+}
+
+function DateRangeField({
+  from,
+  label,
+  onFromChange,
+  onToChange,
+  to,
+}: {
+  from: string;
+  label: string;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+  to: string;
+}) {
+  return (
+    <div className="grid gap-2">
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+        <input
+          className={inputClassName}
+          type="date"
+          value={from}
+          onChange={(event) => onFromChange(event.target.value)}
+        />
+        <span className="text-center text-sm font-bold text-slate-400">~</span>
+        <input
+          className={inputClassName}
+          type="date"
+          value={to}
+          onChange={(event) => onToChange(event.target.value)}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -1146,6 +1423,42 @@ function validateForm(form: ContractRequestFormState): string {
     return "계약 요청 배송 물품은 1개 이상이어야 합니다.";
   }
 
+  if (form.pickupDateFrom && form.pickupDateTo && form.pickupDateFrom > form.pickupDateTo) {
+    return "회수 희망 시작일은 종료일보다 늦을 수 없습니다.";
+  }
+
+  if (
+    form.deliveryDateFrom &&
+    form.deliveryDateTo &&
+    form.deliveryDateFrom > form.deliveryDateTo
+  ) {
+    return "배송 희망 시작일은 종료일보다 늦을 수 없습니다.";
+  }
+
+  if (
+    form.deliveryDateTo &&
+    form.pickupDateFrom &&
+    form.deliveryDateTo < form.pickupDateFrom
+  ) {
+    return "배송 희망 종료일은 회수 희망 시작일보다 과거일 수 없습니다.";
+  }
+
+  if (
+    form.contractType === "RECURRING" &&
+    form.recurringPickupCycle === "WEEKLY" &&
+    form.recurringPickupDaysOfWeek.length === 0
+  ) {
+    return "매주 정기 계약은 회수 요일을 1개 이상 선택해야 합니다.";
+  }
+
+  if (form.contractType === "RECURRING" && form.recurringPickupCycle === "MONTHLY") {
+    const day = Number(form.recurringPickupDayOfMonth);
+
+    if (!day || day < 1 || day > 31) {
+      return "매월 정기 계약은 1일부터 31일 사이의 회수일을 입력해야 합니다.";
+    }
+  }
+
   for (const [index, item] of form.items.entries()) {
     if (!item.productName.trim()) {
       return `라인 ${index + 1}의 품목명은 필수입니다.`;
@@ -1169,6 +1482,20 @@ function toRequestPayload(form: ContractRequestFormState): VendorContractRequest
     productId: firstItem.productId,
     pickupRegion: form.pickupRegion.trim(),
     pickupAddress: form.pickupAddress.trim(),
+    contractType: form.contractType,
+    pickupDateFrom: form.contractType === "SINGLE" ? blankToNull(form.pickupDateFrom) : null,
+    pickupDateTo: form.contractType === "SINGLE" ? blankToNull(form.pickupDateTo) : null,
+    deliveryDateFrom: form.contractType === "SINGLE" ? blankToNull(form.deliveryDateFrom) : null,
+    deliveryDateTo: form.contractType === "SINGLE" ? blankToNull(form.deliveryDateTo) : null,
+    recurringPickupCycle: form.contractType === "RECURRING" ? form.recurringPickupCycle : null,
+    recurringPickupDaysOfWeek:
+      form.contractType === "RECURRING" && form.recurringPickupCycle === "WEEKLY"
+        ? form.recurringPickupDaysOfWeek
+        : [],
+    recurringPickupDayOfMonth:
+      form.contractType === "RECURRING" && form.recurringPickupCycle === "MONTHLY"
+        ? numberToNullable(form.recurringPickupDayOfMonth)
+        : null,
     monthlyVolume: items.reduce((sum, item) => sum + item.boxQuantity, 0),
     productCategory: firstItem.productCategory,
     productName: firstItem.productName,
@@ -1206,6 +1533,14 @@ function toFormStateFromDetail(detail: VendorContractRequestDetail): ContractReq
     approverId: detail.approverId ?? "",
     pickupRegion: detail.pickupRegion,
     pickupAddress: detail.pickupAddress,
+    contractType: detail.contractType ?? "SINGLE",
+    pickupDateFrom: detail.pickupDateFrom ?? "",
+    pickupDateTo: detail.pickupDateTo ?? "",
+    deliveryDateFrom: detail.deliveryDateFrom ?? "",
+    deliveryDateTo: detail.deliveryDateTo ?? "",
+    recurringPickupCycle: detail.recurringPickupCycle ?? "WEEKLY",
+    recurringPickupDaysOfWeek: detail.recurringPickupDaysOfWeek ?? [],
+    recurringPickupDayOfMonth: nullableToString(detail.recurringPickupDayOfMonth),
     pickupStartTime: detail.pickupStartTime ?? "",
     pickupEndTime: detail.pickupEndTime ?? "",
     saturdayDeliveryRequired: detail.saturdayDeliveryRequired,
@@ -1307,6 +1642,10 @@ function toRequiredQuantity(value: string): number {
   return value ? Number(value) : 0;
 }
 
+function toggleDayOfWeek(days: DayOfWeek[], day: DayOfWeek): DayOfWeek[] {
+  return days.includes(day) ? days.filter((current) => current !== day) : [...days, day];
+}
+
 function normalizeIntegerInput(value: string): string {
   return value.replace(/,/g, "").replace(/\D/g, "");
 }
@@ -1336,6 +1675,46 @@ function formatStatus(status: VendorContractRequestDetail["status"]): string {
   };
 
   return labels[status];
+}
+
+function formatContractSchedule(request: VendorContractRequestDetail): string {
+  if (request.contractType === "RECURRING") {
+    if (request.recurringPickupCycle === "WEEKLY") {
+      const days =
+        request.recurringPickupDaysOfWeek.length > 0
+          ? request.recurringPickupDaysOfWeek.map(formatDayOfWeek).join(", ")
+          : "-";
+
+      return `정기 / 매주 ${days}`;
+    }
+
+    return `정기 / 매월 ${request.recurringPickupDayOfMonth ?? "-"}일`;
+  }
+
+  return "단건";
+}
+
+function formatContractDateRange(request: VendorContractRequestDetail): string {
+  if (request.contractType === "RECURRING") {
+    return formatContractSchedule(request);
+  }
+
+  return [
+    `회수 ${formatDateRange(request.pickupDateFrom, request.pickupDateTo)}`,
+    `배송 ${formatDateRange(request.deliveryDateFrom, request.deliveryDateTo)}`,
+  ].join(" / ");
+}
+
+function formatDateRange(from: string | null | undefined, to: string | null | undefined): string {
+  if (!from && !to) {
+    return "-";
+  }
+
+  return `${from ?? "-"} ~ ${to ?? "-"}`;
+}
+
+function formatDayOfWeek(day: DayOfWeek): string {
+  return dayOfWeekOptions.find((option) => option.value === day)?.label ?? day;
 }
 
 function formatProposalStatus(status: VendorProposalItem["status"]): string {

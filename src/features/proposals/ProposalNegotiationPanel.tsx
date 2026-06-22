@@ -8,25 +8,46 @@ import {
   rejectProposalNegotiation,
   type ProposalNegotiationActorType,
   type ProposalNegotiationEvent,
+  type ProposalNegotiationLinePriceItem,
 } from "./negotiation";
+
+type ProposalLinePriceFormState = {
+  contractRequestItemId: string;
+  unitPrice: string;
+};
+
+export type ProposalNegotiationRequestItemContext = {
+  contractRequestItemId: string;
+  productName: string;
+  boxSize: string;
+  boxQuantity: number;
+  itemQuantity: number;
+};
 
 type ProposalNegotiationPanelProps = {
   myRole: ProposalNegotiationActorType;
   onChanged: () => void | Promise<void>;
   pendingNegotiationId: string | null;
+  proposalItems: ProposalNegotiationLinePriceItem[];
   proposalId: string;
   proposalStatus: string;
+  requestItems?: ProposalNegotiationRequestItemContext[];
 };
 
 export function ProposalNegotiationPanel({
   myRole,
   onChanged,
   pendingNegotiationId,
+  proposalItems,
   proposalId,
   proposalStatus,
+  requestItems = [],
 }: ProposalNegotiationPanelProps) {
   const [events, setEvents] = useState<ProposalNegotiationEvent[]>([]);
-  const [unitPrice, setUnitPrice] = useState("");
+  const [unitPrice, setUnitPrice] = useState(toRepresentativeUnitPrice(proposalItems));
+  const [linePrices, setLinePrices] = useState<ProposalLinePriceFormState[]>(
+    toLinePriceFormState(proposalItems),
+  );
   const [memo, setMemo] = useState("");
   const [responseMemo, setResponseMemo] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -44,6 +65,10 @@ export function ProposalNegotiationPanel({
     pendingEvent?.eventType === "PRICE_OFFER" &&
     pendingEvent.status === "PENDING" &&
     pendingEvent.actorType !== myRole;
+  const requestItemById = useMemo(
+    () => new Map(requestItems.map((item) => [item.contractRequestItemId, item])),
+    [requestItems],
+  );
 
   useEffect(() => {
     let active = true;
@@ -92,15 +117,30 @@ export function ProposalNegotiationPanel({
       return;
     }
 
+    const invalidLine = linePrices.find((item) => {
+      const lineUnitPrice = Number(normalizeIntegerInput(item.unitPrice));
+
+      return !lineUnitPrice || lineUnitPrice < 1;
+    });
+
+    if (invalidLine) {
+      setErrorMessage("품목 라인별 조율 단가는 모두 1원 이상 입력해야 합니다.");
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage("");
 
     try {
       await createProposalPriceOffer(proposalId, {
         unitPrice: nextUnitPrice,
+        items: linePrices.map((item) => ({
+          contractRequestItemId: item.contractRequestItemId,
+          unitPrice: Number(normalizeIntegerInput(item.unitPrice)),
+        })),
         memo: blankToNull(memo),
       });
-      setUnitPrice("");
+      setUnitPrice(String(nextUnitPrice));
       setMemo("");
       await refreshEvents();
       await onChanged();
@@ -138,8 +178,11 @@ export function ProposalNegotiationPanel({
     <section className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h4 className="text-sm font-bold text-slate-950">단가 조율</h4>
+          <h4 className="text-sm font-bold text-slate-950">
+            이 계약의 배송 품목별 단가 조율
+          </h4>
           <p className="mt-1 text-xs leading-5 text-slate-500">
+            아래 행은 서로 다른 계약이 아니라, 같은 계약 안에 포함된 배송 품목 라인입니다.
             상대가 응답해야 다음 조율이나 최종 수락을 진행할 수 있습니다.
           </p>
         </div>
@@ -163,7 +206,12 @@ export function ProposalNegotiationPanel({
           </p>
         ) : events.length > 0 ? (
           events.map((event) => (
-            <NegotiationEventCard event={event} isMine={event.actorType === myRole} key={event.eventId} />
+            <NegotiationEventCard
+              event={event}
+              isMine={event.actorType === myRole}
+              key={event.eventId}
+              requestItemById={requestItemById}
+            />
           ))
         ) : (
           <p className="rounded-md bg-white px-3 py-3 text-sm text-slate-500">
@@ -175,8 +223,11 @@ export function ProposalNegotiationPanel({
       {canRespondToPending && pendingEvent ? (
         <div className="grid gap-2 rounded-md border border-amber-200 bg-white p-3">
           <p className="text-sm font-bold text-slate-900">
-            상대 제안 단가 {formatCurrency(pendingEvent.unitPrice)}
+            이 계약의 상대 제안 대표 단가 {formatCurrency(pendingEvent.unitPrice)}
           </p>
+          {(pendingEvent.items ?? []).length > 0 ? (
+            <NegotiationLinePrices items={pendingEvent.items} requestItemById={requestItemById} />
+          ) : null}
           <textarea
             className={`${inputClassName} min-h-20 resize-y py-3`}
             placeholder="응답 메모"
@@ -210,7 +261,8 @@ export function ProposalNegotiationPanel({
             className={inputClassName}
             disabled={!canCreateOffer || isSubmitting}
             inputMode="numeric"
-            placeholder="새 단가"
+            placeholder="계약 대표 단가"
+            readOnly={linePrices.length > 0}
             value={formatIntegerInput(unitPrice)}
             onChange={(event) => setUnitPrice(normalizeIntegerInput(event.target.value))}
           />
@@ -222,6 +274,29 @@ export function ProposalNegotiationPanel({
             onChange={(event) => setMemo(event.target.value)}
           />
         </div>
+        {linePrices.length > 0 ? (
+          <div className="grid gap-2">
+            <p className="text-xs font-bold text-slate-500">배송 품목 라인별 조율 단가</p>
+            {linePrices.map((item, index) => (
+              <ProposalLinePriceInput
+                index={index}
+                item={item}
+                key={item.contractRequestItemId}
+                requestItem={requestItemById.get(item.contractRequestItemId)}
+                onChange={(nextUnitPrice) => {
+                  const nextItems = linePrices.map((currentItem) =>
+                    currentItem.contractRequestItemId === item.contractRequestItemId
+                      ? { ...currentItem, unitPrice: nextUnitPrice }
+                      : currentItem,
+                  );
+
+                  setLinePrices(nextItems);
+                  setUnitPrice(String(calculateAverageUnitPrice(nextItems)));
+                }}
+              />
+            ))}
+          </div>
+        ) : null}
         <div className="flex justify-end">
           <button
             className="h-10 rounded-md border border-[#071f46] px-4 text-sm font-bold text-[#071f46] transition hover:bg-[#071f46]/5 disabled:cursor-not-allowed disabled:opacity-50"
@@ -239,15 +314,18 @@ export function ProposalNegotiationPanel({
 function NegotiationEventCard({
   event,
   isMine,
+  requestItemById,
 }: {
   event: ProposalNegotiationEvent;
   isMine: boolean;
+  requestItemById: Map<string, ProposalNegotiationRequestItemContext>;
 }) {
   return (
     <article className={`grid gap-1 rounded-md bg-white px-3 py-3 ${isMine ? "ml-6" : "mr-6"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-bold text-slate-400">
-          #{event.sequence} {isMine ? "내 조율" : "상대 조율"} · {formatEventType(event.eventType)}
+          #{event.sequence} {isMine ? "내 조율" : "상대 조율"} · 같은 계약의{" "}
+          {formatEventType(event.eventType)}
         </p>
         <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
           {formatEventStatus(event.status)}
@@ -256,9 +334,117 @@ function NegotiationEventCard({
       {event.unitPrice !== null ? (
         <p className="text-sm font-bold text-slate-950">{formatCurrency(event.unitPrice)}</p>
       ) : null}
+      {(event.items ?? []).length > 0 ? (
+        <NegotiationLinePrices items={event.items} requestItemById={requestItemById} />
+      ) : null}
       {event.memo ? <p className="text-sm leading-6 text-slate-600">{event.memo}</p> : null}
     </article>
   );
+}
+
+function ProposalLinePriceInput({
+  index,
+  item,
+  onChange,
+  requestItem,
+}: {
+  index: number;
+  item: ProposalLinePriceFormState;
+  onChange: (unitPrice: string) => void;
+  requestItem?: ProposalNegotiationRequestItemContext;
+}) {
+  return (
+    <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-[1fr_160px] sm:items-center">
+      <div>
+        <p className="text-sm font-bold text-slate-700">
+          배송 품목 라인 {index + 1}. {requestItem?.productName ?? "배송 물품"}
+        </p>
+        {requestItem ? (
+          <p className="mt-1 text-xs font-semibold text-slate-500">
+            {requestItem.boxSize} / {formatLineQuantity(requestItem)}
+          </p>
+        ) : null}
+      </div>
+      <input
+        className={inputClassName}
+        inputMode="numeric"
+        placeholder="라인 단가"
+        value={formatIntegerInput(item.unitPrice)}
+        onChange={(event) => onChange(normalizeIntegerInput(event.target.value))}
+      />
+    </div>
+  );
+}
+
+function NegotiationLinePrices({
+  items,
+  requestItemById,
+}: {
+  items: ProposalNegotiationLinePriceItem[];
+  requestItemById: Map<string, ProposalNegotiationRequestItemContext>;
+}) {
+  return (
+    <div className="grid gap-1">
+      {items.map((item, index) => (
+        <p
+          className="rounded-md bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600"
+          key={item.itemId}
+        >
+          배송 품목 라인 {index + 1}
+          {formatRequestItemLabel(requestItemById.get(item.contractRequestItemId))}:{" "}
+          {formatCurrency(item.unitPrice)}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function formatRequestItemLabel(
+  requestItem: ProposalNegotiationRequestItemContext | undefined,
+): string {
+  if (!requestItem) {
+    return "";
+  }
+
+  return ` · ${requestItem.productName} / ${requestItem.boxSize} / ${formatLineQuantity(requestItem)}`;
+}
+
+function formatLineQuantity(item: ProposalNegotiationRequestItemContext): string {
+  const quantities = [
+    item.boxQuantity > 0 ? `박스 ${item.boxQuantity.toLocaleString("ko-KR")}개` : "",
+    item.itemQuantity > 0 ? `낱개 ${item.itemQuantity.toLocaleString("ko-KR")}개` : "",
+  ].filter(Boolean);
+
+  return quantities.length > 0 ? quantities.join(" / ") : "-";
+}
+
+function toLinePriceFormState(
+  proposalItems: ProposalNegotiationLinePriceItem[],
+): ProposalLinePriceFormState[] {
+  return proposalItems.map((item) => ({
+    contractRequestItemId: item.contractRequestItemId,
+    unitPrice: String(item.unitPrice),
+  }));
+}
+
+function calculateAverageUnitPrice(items: ProposalLinePriceFormState[]): number {
+  const validPrices = items
+    .map((item) => Number(normalizeIntegerInput(item.unitPrice)))
+    .filter((price) => price > 0);
+
+  if (validPrices.length === 0) {
+    return 0;
+  }
+
+  return Math.round(validPrices.reduce((sum, price) => sum + price, 0) / validPrices.length);
+}
+
+function toRepresentativeUnitPrice(proposalItems: ProposalNegotiationLinePriceItem[]): string {
+  if (proposalItems.length === 0) {
+    return "";
+  }
+
+  return String(calculateAverageUnitPrice(toLinePriceFormState(proposalItems)));
 }
 
 function blankToNull(value: string): string | null {

@@ -1,4 +1,11 @@
-import type { BoxSize, ColdChainType, ProductCategory } from "@/src/shared/api/types";
+import type {
+  BoxSize,
+  ColdChainType,
+  ContractRequestContractType,
+  DayOfWeek,
+  ProductCategory,
+  RecurringPickupCycle,
+} from "@/src/shared/api/types";
 
 export type ContractVendorSummary = {
   vendorId: string;
@@ -52,6 +59,14 @@ export type ContractListItem = {
   agencyId: string;
   pickupRegion: string;
   pickupAddress: string;
+  contractType: ContractRequestContractType;
+  pickupDateFrom: string | null;
+  pickupDateTo: string | null;
+  deliveryDateFrom: string | null;
+  deliveryDateTo: string | null;
+  recurringPickupCycle: RecurringPickupCycle | null;
+  recurringPickupDaysOfWeek: DayOfWeek[];
+  recurringPickupDayOfMonth: number | null;
   monthlyVolume: number;
   productCategory: ProductCategory;
   productName: string;

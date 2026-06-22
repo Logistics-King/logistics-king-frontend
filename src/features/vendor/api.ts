@@ -3,8 +3,11 @@ import type {
   BoxSize,
   Carrier,
   ColdChainType,
+  ContractRequestContractType,
+  DayOfWeek,
   PageResponse,
   ProductCategory,
+  RecurringPickupCycle,
 } from "@/src/shared/api/types";
 import type { ContractListItem } from "@/src/features/contracts/types";
 
@@ -72,6 +75,7 @@ export type VendorProposalStatus =
 
 export type VendorContractRequestLine = {
   itemId?: string;
+  contractRequestItemId?: string;
   productId: string | null;
   productCategory: ProductCategory;
   productName: string;
@@ -92,6 +96,14 @@ export type VendorContractRequestPayload = {
   productId: string | null;
   pickupRegion: string;
   pickupAddress: string;
+  contractType?: ContractRequestContractType;
+  pickupDateFrom?: string | null;
+  pickupDateTo?: string | null;
+  deliveryDateFrom?: string | null;
+  deliveryDateTo?: string | null;
+  recurringPickupCycle?: RecurringPickupCycle | null;
+  recurringPickupDaysOfWeek?: DayOfWeek[];
+  recurringPickupDayOfMonth?: number | null;
   monthlyVolume: number;
   productCategory: ProductCategory;
   productName: string;
@@ -108,6 +120,14 @@ export type VendorContractRequestPayload = {
 
 export type VendorContractRequestDetail = VendorContractRequestPayload & {
   contractRequestId: string;
+  contractType: ContractRequestContractType;
+  pickupDateFrom: string | null;
+  pickupDateTo: string | null;
+  deliveryDateFrom: string | null;
+  deliveryDateTo: string | null;
+  recurringPickupCycle: RecurringPickupCycle | null;
+  recurringPickupDaysOfWeek: DayOfWeek[];
+  recurringPickupDayOfMonth: number | null;
   vendorId: string | null;
   agencyId: string | null;
   requesterType: "VENDOR" | "AGENCY";
@@ -127,6 +147,7 @@ export type VendorProposalItem = {
   finalUnitPrice: number | null;
   pendingNegotiationId: string | null;
   nextSequence: number;
+  items: VendorProposalLinePriceItem[];
   pickupStartTime: string | null;
   pickupEndTime: string | null;
   saturdayDeliveryAvailable: boolean;
@@ -134,6 +155,12 @@ export type VendorProposalItem = {
   coldChainType: ColdChainType;
   memo: string | null;
   status: VendorProposalStatus;
+};
+
+export type VendorProposalLinePriceItem = {
+  itemId: string;
+  contractRequestItemId: string;
+  unitPrice: number;
 };
 
 export type VendorAgencySummary = {

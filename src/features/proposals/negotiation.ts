@@ -20,6 +20,7 @@ export type ProposalNegotiationEvent = {
   actorType: ProposalNegotiationActorType;
   eventType: ProposalNegotiationEventType;
   unitPrice: number | null;
+  items: ProposalNegotiationLinePriceItem[];
   memo: string | null;
   status: ProposalNegotiationEventStatus;
 };
@@ -34,6 +35,16 @@ export type ProposalNegotiationMemoRequest = {
 
 export type ProposalPriceOfferRequest = ProposalNegotiationMemoRequest & {
   unitPrice: number;
+  items: ProposalNegotiationLinePriceRequest[];
+};
+
+export type ProposalNegotiationLinePriceRequest = {
+  contractRequestItemId: string;
+  unitPrice: number;
+};
+
+export type ProposalNegotiationLinePriceItem = ProposalNegotiationLinePriceRequest & {
+  itemId: string;
 };
 
 export function getProposalNegotiations(
