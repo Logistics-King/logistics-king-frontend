@@ -10,6 +10,7 @@ import type {
   ProductCategory,
 } from "@/src/shared/api/types";
 import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
+import { ColdChainBadge } from "@/src/shared/ui/ColdChainBadge";
 import {
   getAgencyOpenContractRequests,
   submitAgencyProposal,
@@ -119,6 +120,7 @@ export function AgencyOpenRequestsView() {
   const [needsAgencyProfile, setNeedsAgencyProfile] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<AgencyOpenContractRequestItem | null>(null);
   const [proposalForm, setProposalForm] = useState<ProposalFormState | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingProposal, setIsSubmittingProposal] = useState(false);
 
@@ -226,7 +228,7 @@ export function AgencyOpenRequestsView() {
     });
 
     if (invalidLine) {
-      setErrorMessage("배송 물품 라인별 단가는 모두 1원 이상 입력해야 합니다.");
+      setErrorMessage("배송 품목별 단가는 모두 1원 이상 입력해야 합니다.");
       return;
     }
 
@@ -247,181 +249,187 @@ export function AgencyOpenRequestsView() {
 
   return (
     <section className="grid gap-4">
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-950">일감 조회</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              화주가 공개한 계약 요청을 확인하고 배송 물품 라인별 조건을 비교합니다.
-            </p>
-          </div>
-          <p className="rounded-md bg-[#071f46]/10 px-3 py-2 text-sm font-bold text-[#071f46]">
-            전체 {formatNumber(pageResponse?.totalElements ?? 0)}건
-          </p>
-        </div>
-      </div>
-
       <form
-        className="grid gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+        className="grid gap-4 rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm"
         onSubmit={handleFilterSubmit}
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-slate-950">일감 필터</h3>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              인근 일감, 품목 조건, 화주명, 단가 범위로 조회합니다.
-            </p>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-semibold text-slate-700">{formatFilterSummary(appliedFilters)}</span>
+            <span className="rounded-md bg-[#071f46]/10 px-2.5 py-1 font-bold text-[#071f46]">
+              전체 {formatNumber(pageResponse?.totalElements ?? 0)}건
+            </span>
+              {getActiveFilterCount(appliedFilters) > 0 ? (
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                  {formatNumber(getActiveFilterCount(appliedFilters))}개 적용
+                </span>
+              ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             <button
+              aria-expanded={isFilterOpen}
               className="h-10 rounded-md border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:border-slate-500"
-              onClick={resetFilters}
+              onClick={() => setIsFilterOpen((current) => !current)}
               type="button"
             >
-              초기화
-            </button>
-            <button
-              className="h-10 rounded-md bg-[#071f46] px-4 text-sm font-bold text-white transition hover:bg-[#0a2d63]"
-              type="submit"
-            >
-              조회
+              {isFilterOpen ? "필터 접기" : "필터 펼치기"}
             </button>
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-          <Field label="조회 범위">
-            <select
-              className={inputClassName}
-              value={filters.scope}
-              onChange={(event) =>
-                setFilters({ ...filters, scope: event.target.value as AgencyOpenRequestScope })
-              }
-            >
-              <option value="ALL">전체 일감</option>
-              <option value="NEARBY">인근 일감</option>
-            </select>
-          </Field>
-          <Field label="픽업 지역">
-            <input
-              className={inputClassName}
-              placeholder="안산"
-              value={filters.pickupRegion}
-              onChange={(event) => setFilters({ ...filters, pickupRegion: event.target.value })}
-            />
-          </Field>
-          <Field label="화주명">
-            <input
-              className={inputClassName}
-              placeholder="안산 의류상사"
-              value={filters.vendorName}
-              onChange={(event) => setFilters({ ...filters, vendorName: event.target.value })}
-            />
-          </Field>
-          <Field label="품목명">
-            <input
-              className={inputClassName}
-              placeholder="의류"
-              value={filters.name}
-              onChange={(event) => setFilters({ ...filters, name: event.target.value })}
-            />
-          </Field>
-          <Field label="카테고리">
-            <select
-              className={inputClassName}
-              value={filters.category}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  category: event.target.value as "" | ProductCategory,
-                })
-              }
-            >
-              <option value="">전체</option>
-              {Object.entries(productCategoryLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="박스 규격">
-            <select
-              className={inputClassName}
-              value={filters.boxSize}
-              onChange={(event) =>
-                setFilters({ ...filters, boxSize: event.target.value as "" | BoxSize })
-              }
-            >
-              <option value="">전체</option>
-              {Object.entries(boxSizeLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="온도 관리">
-            <select
-              className={inputClassName}
-              value={filters.coldChainType}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  coldChainType: event.target.value as "" | ColdChainType,
-                })
-              }
-            >
-              <option value="">전체</option>
-              {Object.entries(coldChainTypeLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="희망 단가 최소">
-            <input
-              className={inputClassName}
-              inputMode="numeric"
-              placeholder="1,800"
-              value={formatIntegerInput(filters.minTargetUnitPrice)}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  minTargetUnitPrice: normalizeIntegerInput(event.target.value),
-                })
-              }
-            />
-          </Field>
-          <Field label="희망 단가 최대">
-            <input
-              className={inputClassName}
-              inputMode="numeric"
-              placeholder="2,500"
-              value={formatIntegerInput(filters.maxTargetUnitPrice)}
-              onChange={(event) =>
-                setFilters({
-                  ...filters,
-                  maxTargetUnitPrice: normalizeIntegerInput(event.target.value),
-                })
-              }
-            />
-          </Field>
-        </div>
+        {isFilterOpen ? (
+          <>
+            <div className="grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-3 xl:grid-cols-4">
+              <Field label="조회 범위">
+                <select
+                  className={inputClassName}
+                  value={filters.scope}
+                  onChange={(event) =>
+                    setFilters({ ...filters, scope: event.target.value as AgencyOpenRequestScope })
+                  }
+                >
+                  <option value="ALL">전체 일감</option>
+                  <option value="NEARBY">인근 일감</option>
+                </select>
+              </Field>
+              <Field label="픽업 지역">
+                <input
+                  className={inputClassName}
+                  placeholder="안산"
+                  value={filters.pickupRegion}
+                  onChange={(event) => setFilters({ ...filters, pickupRegion: event.target.value })}
+                />
+              </Field>
+              <Field label="화주명">
+                <input
+                  className={inputClassName}
+                  placeholder="안산 의류상사"
+                  value={filters.vendorName}
+                  onChange={(event) => setFilters({ ...filters, vendorName: event.target.value })}
+                />
+              </Field>
+              <Field label="품목명">
+                <input
+                  className={inputClassName}
+                  placeholder="의류"
+                  value={filters.name}
+                  onChange={(event) => setFilters({ ...filters, name: event.target.value })}
+                />
+              </Field>
+              <Field label="카테고리">
+                <select
+                  className={inputClassName}
+                  value={filters.category}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      category: event.target.value as "" | ProductCategory,
+                    })
+                  }
+                >
+                  <option value="">전체</option>
+                  {Object.entries(productCategoryLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="박스 규격">
+                <select
+                  className={inputClassName}
+                  value={filters.boxSize}
+                  onChange={(event) =>
+                    setFilters({ ...filters, boxSize: event.target.value as "" | BoxSize })
+                  }
+                >
+                  <option value="">전체</option>
+                  {Object.entries(boxSizeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="온도 관리">
+                <select
+                  className={inputClassName}
+                  value={filters.coldChainType}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      coldChainType: event.target.value as "" | ColdChainType,
+                    })
+                  }
+                >
+                  <option value="">전체</option>
+                  {Object.entries(coldChainTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="희망 단가 최소">
+                <input
+                  className={inputClassName}
+                  inputMode="numeric"
+                  placeholder="1,800"
+                  value={formatIntegerInput(filters.minTargetUnitPrice)}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      minTargetUnitPrice: normalizeIntegerInput(event.target.value),
+                    })
+                  }
+                />
+              </Field>
+              <Field label="희망 단가 최대">
+                <input
+                  className={inputClassName}
+                  inputMode="numeric"
+                  placeholder="2,500"
+                  value={formatIntegerInput(filters.maxTargetUnitPrice)}
+                  onChange={(event) =>
+                    setFilters({
+                      ...filters,
+                      maxTargetUnitPrice: normalizeIntegerInput(event.target.value),
+                    })
+                  }
+                />
+              </Field>
+            </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <BooleanFilterField
-            label="토요일 배송 필요"
-            value={filters.saturdayDeliveryRequired}
-            onChange={(value) => setFilters({ ...filters, saturdayDeliveryRequired: value })}
-          />
-          <BooleanFilterField
-            label="반품 필요"
-            value={filters.returnRequired}
-            onChange={(value) => setFilters({ ...filters, returnRequired: value })}
-          />
-        </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <BooleanFilterField
+                label="토요일 배송 필요"
+                value={filters.saturdayDeliveryRequired}
+                onChange={(value) => setFilters({ ...filters, saturdayDeliveryRequired: value })}
+              />
+              <BooleanFilterField
+                label="반품 필요"
+                value={filters.returnRequired}
+                onChange={(value) => setFilters({ ...filters, returnRequired: value })}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                className="h-10 rounded-md border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:border-slate-500"
+                onClick={resetFilters}
+                type="button"
+              >
+                초기화
+              </button>
+              <button
+                className="h-10 rounded-md bg-[#071f46] px-4 text-sm font-bold text-white transition hover:bg-[#0a2d63]"
+                type="submit"
+              >
+                조회
+              </button>
+            </div>
+          </>
+        ) : null}
       </form>
 
       {needsAgencyProfile ? <ProfileRequiredNotice role="AGENCY" /> : null}
@@ -534,7 +542,11 @@ function ContractRequestCard({
             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
               {request.pickupRegion}
             </span>
-            <span className="rounded-full bg-[#071f46]/10 px-2 py-1 text-xs font-bold text-[#071f46]">
+            <span
+              className={`rounded-full px-2 py-1 text-xs font-bold ${getContractRequestStatusClassName(
+                request.status,
+              )}`}
+            >
               {formatContractRequestStatus(request.status)}
             </span>
           </div>
@@ -555,11 +567,11 @@ function ContractRequestCard({
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
+        <InfoItem label="배송 품목" value={`${formatNumber(request.items.length)}개`} />
         <InfoItem label="총 박스" value={formatQuantity(sumBoxQuantity(request.items))} />
         <InfoItem label="총 낱개" value={formatQuantity(sumItemQuantity(request.items))} />
         <InfoItem label="픽업 시간" value={formatPickupTime(request)} />
-        <InfoItem label="계약 일정" value={formatContractSchedule(request)} />
-        <InfoItem label="희망 단가" value={formatCurrency(request.targetUnitPrice)} />
+        <ScheduleInfo request={request} />
       </div>
 
       <div className="grid gap-3">
@@ -665,9 +677,9 @@ function ProposalModal({
 
         <div className="grid gap-3 rounded-lg border border-slate-200 p-4">
           <div>
-            <h3 className="text-base font-bold text-slate-950">배송 물품 라인별 단가</h3>
+            <h3 className="text-base font-bold text-slate-950">배송 품목별 단가</h3>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              각 배송 물품 라인의 단가를 입력하면 대표 제안 단가는 박스 수량 기준으로 자동 계산됩니다.
+              각 배송 품목의 단가를 입력하면 대표 제안 단가는 박스 수량 기준으로 자동 계산됩니다.
             </p>
           </div>
           {request.items.map((item, index) => (
@@ -781,7 +793,7 @@ function LineItemCard({ index, item }: { index: number; item: AgencyContractRequ
     <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm font-bold text-slate-950">
-          라인 {index + 1}. {item.productName}
+          배송 품목 {index + 1}. {item.productName}
         </p>
         <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-600">
           {productCategoryLabels[item.productCategory]}
@@ -789,9 +801,7 @@ function LineItemCard({ index, item }: { index: number; item: AgencyContractRequ
         <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-600">
           {boxSizeLabels[item.boxSize]}
         </span>
-        <span className="rounded-full bg-[#071f46]/10 px-2 py-1 text-xs font-bold text-[#071f46]">
-          {coldChainTypeLabels[item.coldChainType]}
-        </span>
+        <ColdChainBadge type={item.coldChainType} />
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">
@@ -799,7 +809,7 @@ function LineItemCard({ index, item }: { index: number; item: AgencyContractRequ
         <InfoItem label="낱개 수량" value={formatQuantity(item.itemQuantity)} />
         <InfoItem label="평균 무게" value={formatWeight(item.averageWeightGram)} />
         <InfoItem label="희망 단가" value={formatCurrency(item.targetUnitPrice)} />
-        <InfoItem label="온도" value={coldChainTypeLabels[item.coldChainType]} />
+        <InfoItem label="온도" value={<ColdChainBadge type={item.coldChainType} />} />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -826,7 +836,7 @@ function ProposalLinePriceField({
     <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 md:grid-cols-[1fr_180px] md:items-center">
       <div>
         <p className="text-sm font-bold text-slate-950">
-          라인 {index + 1}. {item.productName}
+          배송 품목 {index + 1}. {item.productName}
         </p>
         <p className="mt-1 text-xs font-semibold text-slate-500">
           {boxSizeLabels[item.boxSize]} / {formatLineQuantity(item)} / 희망{" "}
@@ -836,7 +846,7 @@ function ProposalLinePriceField({
       <input
         className={inputClassName}
         inputMode="numeric"
-        placeholder="라인 단가"
+        placeholder="품목 단가"
         value={formatIntegerInput(unitPrice)}
         onChange={(event) => onChange(normalizeIntegerInput(event.target.value))}
       />
@@ -844,11 +854,31 @@ function ProposalLinePriceField({
   );
 }
 
-function InfoItem({ label, value }: { label: string; value: string }) {
+function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-md border border-slate-200 bg-white px-3 py-3">
       <p className="text-xs font-bold text-slate-400">{label}</p>
       <p className="mt-1 break-words text-sm font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function ScheduleInfo({ request }: { request: AgencyOpenContractRequestItem }) {
+  const meta = getContractTypeMeta(request);
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-white px-3 py-3">
+      <p className="text-xs font-bold text-slate-400">계약 일정</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex min-h-7 items-center rounded-full border px-2.5 text-xs font-bold ${meta.className}`}
+        >
+          {meta.label}
+        </span>
+        <span className="text-sm font-semibold leading-6 text-slate-900">
+          {formatContractScheduleDetail(request)}
+        </span>
+      </div>
     </div>
   );
 }
@@ -883,7 +913,24 @@ function formatPickupTime(request: AgencyOpenContractRequestItem): string {
   return `${request.pickupStartTime ?? "-"} ~ ${request.pickupEndTime ?? "-"}`;
 }
 
-function formatContractSchedule(request: AgencyOpenContractRequestItem): string {
+function getContractTypeMeta(request: AgencyOpenContractRequestItem): {
+  className: string;
+  label: string;
+} {
+  if (request.contractType === "RECURRING") {
+    return {
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      label: "정기",
+    };
+  }
+
+  return {
+    className: "border-sky-200 bg-sky-50 text-sky-700",
+    label: "단건",
+  };
+}
+
+function formatContractScheduleDetail(request: AgencyOpenContractRequestItem): string {
   if (request.contractType === "RECURRING") {
     if (request.recurringPickupCycle === "WEEKLY") {
       const days =
@@ -891,17 +938,43 @@ function formatContractSchedule(request: AgencyOpenContractRequestItem): string 
           ? request.recurringPickupDaysOfWeek.map((day) => dayOfWeekLabels[day]).join(", ")
           : "-";
 
-      return `정기 / 매주 ${days}`;
+      return `매주 ${days}`;
     }
 
-    return `정기 / 매월 ${request.recurringPickupDayOfMonth ?? "-"}일`;
+    return `매월 ${request.recurringPickupDayOfMonth ?? "-"}일`;
   }
 
   return [
-    `단건`,
     `회수 ${formatDateRange(request.pickupDateFrom, request.pickupDateTo)}`,
     `배송 ${formatDateRange(request.deliveryDateFrom, request.deliveryDateTo)}`,
   ].join(" / ");
+}
+
+function getActiveFilterCount(form: OpenRequestFilterFormState): number {
+  return [
+    form.scope !== "ALL",
+    Boolean(form.pickupRegion.trim()),
+    Boolean(form.name.trim()),
+    Boolean(form.category),
+    Boolean(form.boxSize),
+    Boolean(form.coldChainType),
+    Boolean(form.saturdayDeliveryRequired),
+    Boolean(form.returnRequired),
+    Boolean(form.minTargetUnitPrice),
+    Boolean(form.maxTargetUnitPrice),
+    Boolean(form.vendorName.trim()),
+  ].filter(Boolean).length;
+}
+
+function formatFilterSummary(form: OpenRequestFilterFormState): string {
+  const activeFilterCount = getActiveFilterCount(form);
+  const scopeLabel = form.scope === "NEARBY" ? "인근 일감" : "전체 일감";
+
+  if (activeFilterCount === 0) {
+    return `${scopeLabel} 기준으로 조회 중입니다. 조건이 필요할 때만 필터를 펼치세요.`;
+  }
+
+  return `${scopeLabel} 기준, ${formatNumber(activeFilterCount)}개 조건이 적용되어 있습니다.`;
 }
 
 function formatDateRange(from: string | null | undefined, to: string | null | undefined): string {
@@ -946,6 +1019,19 @@ function formatContractRequestStatus(status: AgencyOpenContractRequestItem["stat
   };
 
   return labels[status];
+}
+
+function getContractRequestStatusClassName(
+  status: AgencyOpenContractRequestItem["status"],
+): string {
+  const classNames: Record<AgencyOpenContractRequestItem["status"], string> = {
+    OPEN: "bg-amber-50 text-amber-700",
+    CANCELED: "bg-red-50 text-red-700",
+    REJECTED: "bg-red-50 text-red-700",
+    CONTRACTED: "bg-emerald-50 text-emerald-700",
+  };
+
+  return classNames[status];
 }
 
 function toProposalRequest(form: ProposalFormState): AgencyProposalRequest {

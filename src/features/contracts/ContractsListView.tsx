@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { DayOfWeek, PageResponse } from "@/src/shared/api/types";
+import { ColdChainBadge } from "@/src/shared/ui/ColdChainBadge";
 import type { ContractListItem } from "./types";
 
 type ContractsListViewProps = {
@@ -12,12 +13,6 @@ type ContractsListViewProps = {
 };
 
 const pageSize = 10;
-
-const coldChainTypeLabels: Record<ContractListItem["coldChainType"], string> = {
-  NONE: "일반",
-  REFRIGERATED: "냉장",
-  FROZEN: "냉동",
-};
 
 const boxSizeLabels: Record<ContractListItem["boxSize"], string> = {
   SIZE_60: "60사이즈",
@@ -84,19 +79,9 @@ export function ContractsListView({
 
   return (
     <section className="grid gap-4">
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-950">최종 계약 목록</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              수락된 제안으로 확정된 계약의 단가, 집하 조건, 상태를 확인합니다.
-            </p>
-          </div>
-          <p className="rounded-md bg-[#071f46]/10 px-3 py-2 text-sm font-bold text-[#071f46]">
-            전체 {formatNumber(pageResponse?.totalElements ?? 0)}건
-          </p>
-        </div>
-      </div>
+      <p className="w-fit rounded-md bg-[#071f46]/10 px-3 py-2 text-sm font-bold text-[#071f46]">
+        전체 {formatNumber(pageResponse?.totalElements ?? 0)}건
+      </p>
 
       {errorMessage ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -176,7 +161,11 @@ function ContractCard({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-bold text-slate-950">{contract.productName}</h3>
-            <span className="rounded-full bg-[#071f46]/10 px-2 py-1 text-xs font-bold text-[#071f46]">
+            <span
+              className={`rounded-full px-2 py-1 text-xs font-bold ${getContractStatusClassName(
+                contract.status,
+              )}`}
+            >
               {formatContractStatus(contract.status)}
             </span>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
@@ -197,7 +186,7 @@ function ContractCard({
         <InfoItem label="총 낱개" value={`${formatNumber(totalItemQuantity)}개`} />
         <InfoItem label="픽업 시간" value={formatPickupTime(contract)} />
         <InfoItem label="계약 일정" value={formatContractSchedule(contract)} />
-        <InfoItem label="온도 관리" value={coldChainTypeLabels[contract.coldChainType]} />
+        <InfoItem label="온도 관리" value={<ColdChainBadge type={contract.coldChainType} />} />
         <InfoItem label="토요일 배송" value={contract.saturdayDeliveryAvailable ? "가능" : "불가"} />
         <InfoItem label="반품" value={contract.returnAvailable ? "가능" : "불가"} />
         <InfoItem label="계약 ID" value={shortId(contract.contractId)} />
@@ -235,7 +224,9 @@ function ContractLineItems({ items }: { items: ContractListItem["items"] }) {
               <span>{boxSizeLabels[item.boxSize]}</span>
               <span>{formatContractLineQuantity(item)}</span>
               <span>{formatCurrency(item.unitPrice)}</span>
-              <span>{coldChainTypeLabels[item.coldChainType]}</span>
+              <span>
+                <ColdChainBadge type={item.coldChainType} />
+              </span>
             </div>
           ))}
         </div>
@@ -244,7 +235,7 @@ function ContractLineItems({ items }: { items: ContractListItem["items"] }) {
   );
 }
 
-function InfoItem({ label, value }: { label: string; value: string }) {
+function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-md border border-slate-200 bg-white px-3 py-3">
       <p className="text-xs font-bold text-slate-400">{label}</p>
@@ -278,6 +269,14 @@ function formatContractStatus(status: ContractListItem["status"]): string {
   };
 
   return labels[status] ?? status;
+}
+
+function getContractStatusClassName(status: ContractListItem["status"]): string {
+  if (status === "ACTIVE") {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  return "bg-amber-50 text-amber-700";
 }
 
 function formatPickupTime(contract: ContractListItem): string {

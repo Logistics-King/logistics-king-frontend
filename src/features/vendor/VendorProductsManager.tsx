@@ -8,6 +8,7 @@ import type { BoxSize, ColdChainType, ProductCategory } from "@/src/shared/api/t
 import type { PageResponse } from "@/src/shared/api/types";
 import { AddressSearchButton } from "@/src/shared/address/AddressSearchButton";
 import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
+import { ColdChainBadge } from "@/src/shared/ui/ColdChainBadge";
 import {
   createVendorProduct,
   getVendorProducts,
@@ -548,12 +549,9 @@ function ProductsList({
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="grid gap-4 border-b border-slate-200 px-5 py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-bold text-slate-950">배송 품목 조회</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-600">
-              전체 {formatNumber(pageResponse?.totalElements ?? 0)}건
-            </p>
-          </div>
+          <p className="text-sm font-semibold text-slate-600">
+            전체 {formatNumber(pageResponse?.totalElements ?? 0)}건
+          </p>
           <Link
             className="inline-flex h-9 items-center justify-center rounded-md bg-[#071f46] px-3 text-sm font-bold text-white transition hover:bg-[#0a2d63]"
             href="/vendor/products/new"
@@ -665,14 +663,11 @@ function ProductsList({
                 <Info label="박스 수량" value={formatQuantity(product.boxQuantity)} />
                 <Info label="낱개 수량" value={formatQuantity(product.itemQuantity)} />
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
+              <div className="flex flex-wrap items-start gap-2">
                 <Flag active={product.fragile} label="파손" />
                 <Flag active={product.liquid} label="액체" />
                 <Flag active={product.freshFood} label="신선" />
-                <Flag
-                  active={product.coldChainType !== "NONE"}
-                  label={coldChainLabelMap[product.coldChainType]}
-                />
+                <ColdChainBadge type={product.coldChainType} />
               </div>
               <div className="flex items-start justify-end">
                 <button
@@ -990,12 +985,6 @@ const categoryLabelMap: Record<ProductCategory, string> = {
   DOCUMENT: "문서/책자",
   COSMETIC: "화장품",
   ETC: "기타",
-};
-
-const coldChainLabelMap: Record<ColdChainType, string> = {
-  NONE: "온도 관리 없음",
-  REFRIGERATED: "냉장",
-  FROZEN: "냉동",
 };
 
 const boxSizeLabelMap: Record<BoxSize, string> = {

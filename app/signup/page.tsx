@@ -17,10 +17,10 @@ export default function SignUpPage() {
           택배왕
         </Link>
 
-        <div className="grid gap-8 lg:grid-cols-[360px_1fr]">
+        <div className="grid gap-8 lg:grid-cols-[400px_1fr]">
           <div className="flex flex-col justify-center gap-5">
             <p className="text-sm font-semibold text-orange-600">계정 생성</p>
-            <h1 className="text-4xl font-bold tracking-normal text-slate-950">
+            <h1 className="text-3xl font-bold leading-[1.35] tracking-normal text-slate-950 sm:text-4xl">
               역할에 맞는 계정을 만들고 계약 흐름을 시작합니다.
             </h1>
             <p className="text-base leading-8 text-slate-600">

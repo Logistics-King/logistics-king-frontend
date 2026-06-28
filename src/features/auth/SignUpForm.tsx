@@ -69,7 +69,7 @@ export function SignUpForm() {
 
             return (
               <button
-                className={`min-h-24 rounded-md border p-3 text-left transition ${
+                className={`min-h-32 rounded-md border p-4 text-left leading-normal transition ${
                   isSelected
                     ? "border-emerald-700 bg-emerald-50 text-emerald-950"
                     : "border-slate-300 bg-white text-slate-700 hover:border-slate-500"
@@ -79,8 +79,12 @@ export function SignUpForm() {
                 onClick={() => setSelectedRole(item.role)}
                 aria-pressed={isSelected}
               >
-                <span className="block text-base font-semibold">{item.label}</span>
-                <span className="mt-1 block text-xs leading-5">{item.description}</span>
+                <span className="block break-keep text-base font-semibold leading-6">
+                  {item.label}
+                </span>
+                <span className="mt-2 block break-keep text-xs leading-6">
+                  {item.description}
+                </span>
               </button>
             );
           })}

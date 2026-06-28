@@ -25,6 +25,7 @@ export type ProposalNegotiationRequestItemContext = {
 };
 
 type ProposalNegotiationPanelProps = {
+  actorLabels?: Partial<Record<ProposalNegotiationActorType, string>>;
   myRole: ProposalNegotiationActorType;
   onChanged: () => void | Promise<void>;
   pendingNegotiationId: string | null;
@@ -35,6 +36,7 @@ type ProposalNegotiationPanelProps = {
 };
 
 export function ProposalNegotiationPanel({
+  actorLabels = {},
   myRole,
   onChanged,
   pendingNegotiationId,
@@ -58,6 +60,10 @@ export function ProposalNegotiationPanel({
   const pendingEvent = useMemo(
     () => events.find((event) => event.eventId === pendingNegotiationId) ?? null,
     [events, pendingNegotiationId],
+  );
+  const visibleEvents = useMemo(
+    () => events.filter((event) => event.eventType === "PRICE_OFFER"),
+    [events],
   );
   const canCreateOffer =
     !pendingNegotiationId && (proposalStatus === "SUBMITTED" || proposalStatus === "NEGOTIATING");
@@ -204,11 +210,11 @@ export function ProposalNegotiationPanel({
           <p className="rounded-md bg-white px-3 py-3 text-sm text-slate-500">
             조율 내역을 불러오는 중입니다.
           </p>
-        ) : events.length > 0 ? (
-          events.map((event) => (
+        ) : visibleEvents.length > 0 ? (
+          visibleEvents.map((event) => (
             <NegotiationEventCard
+              actorLabel={formatActorLabel(event.actorType, myRole, actorLabels)}
               event={event}
-              isMine={event.actorType === myRole}
               key={event.eventId}
               requestItemById={requestItemById}
             />
@@ -226,7 +232,11 @@ export function ProposalNegotiationPanel({
             이 계약의 상대 제안 대표 단가 {formatCurrency(pendingEvent.unitPrice)}
           </p>
           {(pendingEvent.items ?? []).length > 0 ? (
-            <NegotiationLinePrices items={pendingEvent.items} requestItemById={requestItemById} />
+            <NegotiationLinePrices
+              items={pendingEvent.items}
+              requestItemById={requestItemById}
+              status={pendingEvent.status}
+            />
           ) : null}
           <textarea
             className={`${inputClassName} min-h-20 resize-y py-3`}
@@ -312,30 +322,37 @@ export function ProposalNegotiationPanel({
 }
 
 function NegotiationEventCard({
+  actorLabel,
   event,
-  isMine,
   requestItemById,
 }: {
+  actorLabel: string;
   event: ProposalNegotiationEvent;
-  isMine: boolean;
   requestItemById: Map<string, ProposalNegotiationRequestItemContext>;
 }) {
   return (
-    <article className={`grid gap-1 rounded-md bg-white px-3 py-3 ${isMine ? "ml-6" : "mr-6"}`}>
+    <article className="grid gap-2 rounded-md bg-white px-3 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-bold text-slate-400">
-          #{event.sequence} {isMine ? "내 조율" : "상대 조율"} · 같은 계약의{" "}
-          {formatEventType(event.eventType)}
-        </p>
-        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
+        <p className="text-sm font-bold text-slate-900">{actorLabel}의 단가 제안</p>
+        <span
+          className={`rounded-full px-2 py-1 text-xs font-bold ${getEventStatusClassName(
+            event.status,
+          )}`}
+        >
           {formatEventStatus(event.status)}
         </span>
       </div>
       {event.unitPrice !== null ? (
-        <p className="text-sm font-bold text-slate-950">{formatCurrency(event.unitPrice)}</p>
+        <p className={`text-sm font-bold ${getEventPriceClassName(event.status)}`}>
+          {formatCurrency(event.unitPrice)}
+        </p>
       ) : null}
       {(event.items ?? []).length > 0 ? (
-        <NegotiationLinePrices items={event.items} requestItemById={requestItemById} />
+        <NegotiationLinePrices
+          items={event.items}
+          requestItemById={requestItemById}
+          status={event.status}
+        />
       ) : null}
       {event.memo ? <p className="text-sm leading-6 text-slate-600">{event.memo}</p> : null}
     </article>
@@ -379,9 +396,11 @@ function ProposalLinePriceInput({
 function NegotiationLinePrices({
   items,
   requestItemById,
+  status,
 }: {
   items: ProposalNegotiationLinePriceItem[];
   requestItemById: Map<string, ProposalNegotiationRequestItemContext>;
+  status: ProposalNegotiationEvent["status"];
 }) {
   return (
     <div className="grid gap-1">
@@ -392,7 +411,7 @@ function NegotiationLinePrices({
         >
           배송 품목 라인 {index + 1}
           {formatRequestItemLabel(requestItemById.get(item.contractRequestItemId))}:{" "}
-          {formatCurrency(item.unitPrice)}
+          <span className={getEventPriceClassName(status)}>{formatCurrency(item.unitPrice)}</span>
         </p>
       ))}
     </div>
@@ -465,14 +484,20 @@ function formatCurrency(value: number | null | undefined): string {
   return value === null || value === undefined ? "-" : `${value.toLocaleString("ko-KR")}원`;
 }
 
-function formatEventType(type: ProposalNegotiationEvent["eventType"]): string {
-  const labels: Record<ProposalNegotiationEvent["eventType"], string> = {
-    PRICE_OFFER: "단가 제안",
-    PRICE_ACCEPTED: "단가 수락",
-    PRICE_REJECTED: "단가 거절",
-  };
+function formatActorLabel(
+  actorType: ProposalNegotiationActorType,
+  myRole: ProposalNegotiationActorType,
+  actorLabels: Partial<Record<ProposalNegotiationActorType, string>>,
+): string {
+  if (actorLabels[actorType]) {
+    return actorLabels[actorType];
+  }
 
-  return labels[type];
+  if (actorType === myRole) {
+    return "내";
+  }
+
+  return actorType === "AGENCY" ? "대리점" : "화주";
 }
 
 function formatEventStatus(status: ProposalNegotiationEvent["status"]): string {
@@ -484,6 +509,28 @@ function formatEventStatus(status: ProposalNegotiationEvent["status"]): string {
   };
 
   return labels[status];
+}
+
+function getEventStatusClassName(status: ProposalNegotiationEvent["status"]): string {
+  const classNames: Record<ProposalNegotiationEvent["status"], string> = {
+    PENDING: "bg-amber-50 text-amber-700",
+    ACCEPTED: "bg-emerald-50 text-emerald-700",
+    REJECTED: "bg-red-50 text-red-700",
+    RECORDED: "bg-slate-100 text-slate-600",
+  };
+
+  return classNames[status];
+}
+
+function getEventPriceClassName(status: ProposalNegotiationEvent["status"]): string {
+  const classNames: Record<ProposalNegotiationEvent["status"], string> = {
+    PENDING: "text-amber-700",
+    ACCEPTED: "text-emerald-700",
+    REJECTED: "text-red-700",
+    RECORDED: "text-slate-700",
+  };
+
+  return classNames[status];
 }
 
 function getErrorMessage(error: unknown): string {

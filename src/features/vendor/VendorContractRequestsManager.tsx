@@ -16,6 +16,7 @@ import type {
 import { getVendorProfile, type VendorProfile } from "@/src/features/profile/api";
 import { ProposalNegotiationPanel } from "@/src/features/proposals/ProposalNegotiationPanel";
 import { ProfileRequiredNotice } from "@/src/shared/profile/ProfileRequiredNotice";
+import { ColdChainBadge } from "@/src/shared/ui/ColdChainBadge";
 import {
   acceptVendorProposal,
   cancelVendorContractRequest,
@@ -707,13 +708,7 @@ export function VendorContractRequestsManager({
         </div>
       </form>
       ) : (
-        <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-950">계약 요청 조회</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              등록한 계약 요청을 확인하고 진행중인 요청을 수정하거나 삭제합니다.
-            </p>
-          </div>
+        <div className="flex justify-end">
           <Link
             className="inline-flex h-11 items-center justify-center rounded-md bg-[#071f46] px-5 text-sm font-bold text-white transition hover:bg-[#0a2d63]"
             href="/vendor/contract-requests/new"
@@ -1184,7 +1179,7 @@ function LineReadOnlyCard({ item }: { item: VendorContractRequestLine }) {
       <Info label="품목명" value={item.productName} />
       <Info label="박스 크기" value={formatBoxSize(item.boxSize)} />
       <Info label="수량" value={formatLineQuantity(item)} />
-      <Info label="온도 관리" value={formatColdChainType(item.coldChainType)} />
+      <Info label="온도 관리" value={<ColdChainBadge type={item.coldChainType} />} />
       <Info label="희망 단가" value={formatCurrency(item.targetUnitPrice)} />
     </article>
   );
@@ -1212,15 +1207,41 @@ function ProposalCard({
 
   return (
     <article className="grid gap-4 px-4 py-4">
+      <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-bold text-slate-400">제안 대리점</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h4 className="text-lg font-bold text-slate-950">
+              {proposal.agency?.agencyName ?? "대리점 정보 없음"}
+            </h4>
+            <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-600">
+              {formatProposalAgencyArea(proposal)}
+            </span>
+          </div>
+        </div>
+        <span
+          className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${getProposalStatusClassName(
+            proposal.status,
+          )}`}
+        >
+          {formatProposalStatus(proposal.status)}
+        </span>
+      </div>
       <div className="grid gap-4 lg:grid-cols-6">
-        <Info label="대리점" value={proposal.agency?.agencyName ?? "대리점 정보 없음"} />
-        <Info label="택배사/지역" value={formatProposalAgencyArea(proposal)} />
-        <Info label="제안 단가" value={formatCurrency(proposal.unitPrice)} />
-        <Info label="최초 단가" value={formatCurrency(proposal.initialUnitPrice)} />
-        <Info label="합의 단가" value={formatCurrency(proposal.finalUnitPrice)} />
+        <Info
+          label="제안 단가"
+          value={<ProposalPriceText status={proposal.status} value={proposal.unitPrice} />}
+        />
+        <Info
+          label="최초 단가"
+          value={<ProposalPriceText status={proposal.status} value={proposal.initialUnitPrice} />}
+        />
+        <Info
+          label="합의 단가"
+          value={<ProposalPriceText status={proposal.status} value={proposal.finalUnitPrice} />}
+        />
         <Info label="픽업 시간" value={formatProposalPickupTime(proposal)} />
-        <Info label="온도 관리" value={formatColdChainType(proposal.coldChainType)} />
-        <Info label="상태" value={formatProposalStatus(proposal.status)} />
+        <Info label="온도 관리" value={<ColdChainBadge type={proposal.coldChainType} />} />
       </div>
       {proposal.memo ? (
         <Info label="제안 메모" value={proposal.memo} />
@@ -1229,6 +1250,10 @@ function ProposalCard({
         <ProposalLinePrices proposal={proposal} requestItems={requestItems} />
       ) : null}
       <ProposalNegotiationPanel
+        actorLabels={{
+          AGENCY: proposal.agency?.agencyName ?? "대리점",
+          VENDOR: "화주",
+        }}
         key={getProposalNegotiationPanelKey(proposal)}
         myRole="VENDOR"
         onChanged={onNegotiationChanged}
@@ -1288,7 +1313,9 @@ function ProposalLinePrices({
                       )} / ${formatLineQuantity(requestItem)}`
                     : ""}
                 </span>
-                <span>{formatCurrency(item.unitPrice)}</span>
+                <span className={getProposalPriceClassName(proposal.status)}>
+                  {formatCurrency(item.unitPrice)}
+                </span>
               </div>
             );
           })}
@@ -1296,6 +1323,16 @@ function ProposalLinePrices({
       </div>
     </div>
   );
+}
+
+function ProposalPriceText({
+  status,
+  value,
+}: {
+  status: VendorProposalItem["status"];
+  value: number | null | undefined;
+}) {
+  return <span className={getProposalPriceClassName(status)}>{formatCurrency(value)}</span>;
 }
 
 function getProposalNegotiationPanelKey(proposal: VendorProposalItem): string {
@@ -1322,8 +1359,8 @@ function getVendorContractRequestItemId(item: VendorContractRequestLine): string
 
 function StatusBadge({ status }: { status: VendorContractRequestDetail["status"] }) {
   const style = {
-    OPEN: "border-blue-200 bg-blue-50 text-blue-700",
-    CANCELED: "border-slate-200 bg-slate-100 text-slate-600",
+    OPEN: "border-amber-200 bg-amber-50 text-amber-700",
+    CANCELED: "border-red-200 bg-red-50 text-red-700",
     REJECTED: "border-red-200 bg-red-50 text-red-700",
     CONTRACTED: "border-emerald-200 bg-emerald-50 text-emerald-700",
   }[status];
@@ -1333,6 +1370,30 @@ function StatusBadge({ status }: { status: VendorContractRequestDetail["status"]
       {formatStatus(status)}
     </span>
   );
+}
+
+function getProposalPriceClassName(status: VendorProposalItem["status"]): string {
+  const classNames: Record<VendorProposalItem["status"], string> = {
+    SUBMITTED: "text-amber-700",
+    NEGOTIATING: "text-amber-700",
+    WITHDRAWN: "text-red-700",
+    ACCEPTED: "text-emerald-700",
+    REJECTED: "text-red-700",
+  };
+
+  return classNames[status];
+}
+
+function getProposalStatusClassName(status: VendorProposalItem["status"]): string {
+  const classNames: Record<VendorProposalItem["status"], string> = {
+    SUBMITTED: "bg-amber-50 text-amber-700",
+    NEGOTIATING: "bg-amber-50 text-amber-700",
+    WITHDRAWN: "bg-red-50 text-red-700",
+    ACCEPTED: "bg-emerald-50 text-emerald-700",
+    REJECTED: "bg-red-50 text-red-700",
+  };
+
+  return classNames[status];
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -1401,7 +1462,7 @@ function BooleanField({
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <p className="text-xs font-bold text-slate-400">{label}</p>
@@ -1731,10 +1792,6 @@ function formatProposalStatus(status: VendorProposalItem["status"]): string {
 
 function formatBoxSize(value: BoxSize): string {
   return boxSizeOptions.find((option) => option.value === value)?.label ?? value;
-}
-
-function formatColdChainType(value: ColdChainType): string {
-  return coldChainOptions.find((option) => option.value === value)?.label ?? value;
 }
 
 function formatLineQuantity(item: VendorContractRequestLine): string {

@@ -3,7 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { logout } from "@/src/features/auth/api";
 import { API_BASE_URL } from "@/src/shared/api/client";
 import type { UserRole } from "@/src/shared/api/types";
@@ -104,6 +111,7 @@ function DesktopSidebar({ role, menuItems }: { role: UserRole; menuItems: MenuIt
 
 function TopNavigation({ role }: { role: UserRole }) {
   const router = useRouter();
+  const receivedNotificationIds = useRef<Set<string>>(new Set());
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [latestNotification, setLatestNotification] = useState<NotificationItem | null>(null);
@@ -135,9 +143,12 @@ function TopNavigation({ role }: { role: UserRole }) {
     eventSource.addEventListener("connected", fetchUnreadCount);
     eventSource.addEventListener("notification", (event) => {
       try {
-        const notification = JSON.parse((event as MessageEvent).data) as NotificationItem;
+        const messageEvent = event as MessageEvent;
+        const notification = JSON.parse(messageEvent.data) as NotificationItem;
+        const notificationId = messageEvent.lastEventId || notification.notificationId;
 
-        if (active) {
+        if (active && !receivedNotificationIds.current.has(notificationId)) {
+          receivedNotificationIds.current.add(notificationId);
           setLatestNotification(notification);
           setToastNotification(notification);
         }

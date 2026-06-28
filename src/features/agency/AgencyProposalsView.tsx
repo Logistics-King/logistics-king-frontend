@@ -9,6 +9,7 @@ import type {
   ProductCategory,
 } from "@/src/shared/api/types";
 import { ProposalNegotiationPanel } from "@/src/features/proposals/ProposalNegotiationPanel";
+import { ColdChainBadge } from "@/src/shared/ui/ColdChainBadge";
 import {
   getAgencyContractRequest,
   getAgencyProposals,
@@ -210,19 +211,9 @@ export function AgencyProposalsView() {
 
   return (
     <section className="grid gap-4">
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-950">내 제안</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              제출한 제안의 단가와 조건을 확인하고 진행중인 제안을 수정하거나 철회합니다.
-            </p>
-          </div>
-          <p className="rounded-md bg-[#071f46]/10 px-3 py-2 text-sm font-bold text-[#071f46]">
-            전체 {formatNumber(pageResponse?.totalElements ?? 0)}건
-          </p>
-        </div>
-      </div>
+      <p className="w-fit rounded-md bg-[#071f46]/10 px-3 py-2 text-sm font-bold text-[#071f46]">
+        전체 {formatNumber(pageResponse?.totalElements ?? 0)}건
+      </p>
 
       {errorMessage ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -347,7 +338,11 @@ function ProposalCard({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-bold text-slate-950">{formatVendorName(proposal)}</h3>
-            <span className="rounded-full bg-[#071f46]/10 px-2 py-1 text-xs font-bold text-[#071f46]">
+            <span
+              className={`rounded-full px-2 py-1 text-xs font-bold ${getProposalStatusClassName(
+                proposal.status,
+              )}`}
+            >
               {formatProposalStatus(proposal.status)}
             </span>
             {proposal.agency ? (
@@ -381,12 +376,21 @@ function ProposalCard({
       <div className="grid gap-3 md:grid-cols-4">
         <InfoItem label="화주" value={formatVendorName(proposal)} />
         <InfoItem label="화주 지역" value={proposal.vendor?.mainRegion ?? "-"} />
-        <InfoItem label="제안 단가" value={formatCurrency(proposal.unitPrice)} />
-        <InfoItem label="최초 단가" value={formatCurrency(proposal.initialUnitPrice)} />
-        <InfoItem label="합의 단가" value={formatCurrency(proposal.finalUnitPrice)} />
+        <InfoItem
+          label="제안 단가"
+          value={<ProposalPriceText status={proposal.status} value={proposal.unitPrice} />}
+        />
+        <InfoItem
+          label="최초 단가"
+          value={<ProposalPriceText status={proposal.status} value={proposal.initialUnitPrice} />}
+        />
+        <InfoItem
+          label="합의 단가"
+          value={<ProposalPriceText status={proposal.status} value={proposal.finalUnitPrice} />}
+        />
         <InfoItem label="픽업 시간" value={formatPickupTime(proposal)} />
         <InfoItem label="계약 일정" value={request ? formatContractSchedule(request) : "-"} />
-        <InfoItem label="온도 관리" value={coldChainTypeLabels[proposal.coldChainType]} />
+        <InfoItem label="온도 관리" value={<ColdChainBadge type={proposal.coldChainType} />} />
         <InfoItem label="처리 조건" value={formatServiceOptions(proposal)} />
       </div>
 
@@ -401,6 +405,10 @@ function ProposalCard({
       ) : null}
 
       <ProposalNegotiationPanel
+        actorLabels={{
+          AGENCY: proposal.agency?.agencyName ?? "내 대리점",
+          VENDOR: proposal.vendor?.businessName ?? "화주",
+        }}
         key={getProposalNegotiationPanelKey(proposal)}
         myRole="AGENCY"
         onChanged={onNegotiationChanged}
@@ -600,13 +608,23 @@ function BooleanField({
   );
 }
 
-function InfoItem({ label, value }: { label: string; value: string }) {
+function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-md border border-slate-200 bg-white px-3 py-3">
       <p className="text-xs font-bold text-slate-400">{label}</p>
       <p className="mt-1 break-words text-sm font-semibold text-slate-900">{value}</p>
     </div>
   );
+}
+
+function ProposalPriceText({
+  status,
+  value,
+}: {
+  status: AgencyProposalItem["status"];
+  value: number | null | undefined;
+}) {
+  return <span className={getProposalPriceClassName(status)}>{formatCurrency(value)}</span>;
 }
 
 function ProposalLinePriceField({
@@ -658,6 +676,7 @@ function ProposalLinePriceSummary({
           index={index}
           item={item}
           key={item.itemId}
+          proposalStatus={proposal.status}
           requestItem={findRequestItem(request, item.contractRequestItemId)}
         />
       ))}
@@ -668,16 +687,21 @@ function ProposalLinePriceSummary({
 function ProposalLinePriceSummaryRow({
   index,
   item,
+  proposalStatus,
   requestItem,
 }: {
   index: number;
   item: AgencyProposalItem["items"][number];
+  proposalStatus: AgencyProposalItem["status"];
   requestItem: AgencyContractRequestLineItem | undefined;
 }) {
   return (
     <div className="grid gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-3 md:grid-cols-[1fr_160px] md:items-center">
       <LineItemTitle index={index} item={requestItem} />
-      <InfoItem label="현재 제안 단가" value={formatCurrency(item.unitPrice)} />
+      <InfoItem
+        label="현재 제안 단가"
+        value={<ProposalPriceText status={proposalStatus} value={item.unitPrice} />}
+      />
     </div>
   );
 }
@@ -712,9 +736,7 @@ function LineItemTitle({
         <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-600">
           {boxSizeLabels[item.boxSize]}
         </span>
-        <span className="rounded-full bg-[#071f46]/10 px-2 py-1 text-xs font-bold text-[#071f46]">
-          {coldChainTypeLabels[item.coldChainType]}
-        </span>
+        <ColdChainBadge type={item.coldChainType} />
       </div>
       <p className="text-xs font-semibold text-slate-500">
         {formatLineQuantity(item)} / 평균 {formatWeight(item.averageWeightGram)} / 희망{" "}
@@ -993,6 +1015,30 @@ function formatProposalStatus(status: AgencyProposalItem["status"]): string {
   };
 
   return labels[status] ?? status;
+}
+
+function getProposalStatusClassName(status: AgencyProposalItem["status"]): string {
+  const classNames: Record<AgencyProposalItem["status"], string> = {
+    SUBMITTED: "bg-amber-50 text-amber-700",
+    NEGOTIATING: "bg-amber-50 text-amber-700",
+    WITHDRAWN: "bg-red-50 text-red-700",
+    ACCEPTED: "bg-emerald-50 text-emerald-700",
+    REJECTED: "bg-red-50 text-red-700",
+  };
+
+  return classNames[status];
+}
+
+function getProposalPriceClassName(status: AgencyProposalItem["status"]): string {
+  const classNames: Record<AgencyProposalItem["status"], string> = {
+    SUBMITTED: "text-amber-700",
+    NEGOTIATING: "text-amber-700",
+    WITHDRAWN: "text-red-700",
+    ACCEPTED: "text-emerald-700",
+    REJECTED: "text-red-700",
+  };
+
+  return classNames[status];
 }
 
 function getErrorMessage(error: unknown): string {
