@@ -190,6 +190,28 @@ export type VendorAgencyDetail = VendorAgencySummary & {
   addressDetail: string | null;
 };
 
+export type RecommendationReasonType =
+  | "PREVIOUS_CONTRACT"
+  | "SERVICE_REGION_MATCH"
+  | "MAIN_REGION_MATCH"
+  | string;
+
+export type RecommendationReason = {
+  type: RecommendationReasonType;
+  label: string;
+};
+
+export type VendorRecommendedAgencyItem = VendorAgencyDetail & {
+  targetType: "AGENCY";
+  purpose: "CONTRACT_REQUEST_AGENCY_MATCHING" | string;
+  score: number;
+  reasons: RecommendationReason[];
+};
+
+export type VendorRecommendedAgenciesResponse = {
+  items: VendorRecommendedAgencyItem[];
+};
+
 export function getVendorProducts({
   page = 0,
   size = 20,
@@ -306,6 +328,16 @@ export function getVendorAgencies({
 export function getVendorAgencyDetail(agencyId: string): Promise<VendorAgencyDetail> {
   // 목록에서 선택한 대리점의 상세 정보를 가져옵니다.
   return apiFetch(`/api/v1/agencies/${agencyId}`, {
+    credentials: "include",
+  });
+}
+
+export function getVendorRecommendedAgencies(limit = 5): Promise<VendorRecommendedAgenciesResponse> {
+  const searchParams = new URLSearchParams({
+    limit: String(limit),
+  });
+
+  return apiFetch(`/api/v1/recommendations/agencies?${searchParams.toString()}`, {
     credentials: "include",
   });
 }

@@ -141,6 +141,35 @@ export type AgencyProposalStatus =
   | "REJECTED"
   | string;
 
+export type RecommendationReasonType =
+  | "PREVIOUS_CONTRACT"
+  | "SERVICE_REGION_MATCH"
+  | "MAIN_REGION_MATCH"
+  | string;
+
+export type RecommendationReason = {
+  type: RecommendationReasonType;
+  label: string;
+};
+
+export type AgencyRecommendedVendorItem = {
+  targetType: "VENDOR";
+  purpose: "AGENCY_SALES_VENDOR_DISCOVERY" | string;
+  vendorId: string;
+  businessName: string;
+  representativeName: string;
+  phoneNumber: string;
+  address: string;
+  addressDetail: string | null;
+  mainRegion: string;
+  score: number;
+  reasons: RecommendationReason[];
+};
+
+export type AgencyRecommendedVendorsResponse = {
+  items: AgencyRecommendedVendorItem[];
+};
+
 export type AgencyProposalItem = Omit<AgencyProposalRequest, "items"> & {
   proposalId: string;
   contractRequestId: string;
@@ -255,6 +284,16 @@ export function getAgencyContracts({
   });
 
   return apiFetch(`/api/v1/contracts/agency/me?${searchParams.toString()}`, {
+    credentials: "include",
+  });
+}
+
+export function getAgencyRecommendedVendors(limit = 5): Promise<AgencyRecommendedVendorsResponse> {
+  const searchParams = new URLSearchParams({
+    limit: String(limit),
+  });
+
+  return apiFetch(`/api/v1/recommendations/vendors?${searchParams.toString()}`, {
     credentials: "include",
   });
 }

@@ -9,21 +9,25 @@ import {
   getVendorContractRequests,
   getVendorContracts,
   getVendorProducts,
+  getVendorRecommendedAgencies,
   type VendorContractItem,
   type VendorContractRequestItem,
   type VendorProductItem,
+  type VendorRecommendedAgencyItem,
 } from "./api";
 
 type DashboardState = {
   products: PageResponse<VendorProductItem> | null;
   contractRequests: PageResponse<VendorContractRequestItem> | null;
   contracts: PageResponse<VendorContractItem> | null;
+  recommendedAgencies: VendorRecommendedAgencyItem[];
 };
 
 const initialState: DashboardState = {
   products: null,
   contractRequests: null,
   contracts: null,
+  recommendedAgencies: [],
 };
 
 export function VendorDashboard() {
@@ -41,14 +45,20 @@ export function VendorDashboard() {
       setNeedsVendorProfile(false);
 
       try {
-        const [products, contractRequests, contracts] = await Promise.all([
+        const [products, contractRequests, contracts, recommendedAgencies] = await Promise.all([
           getVendorProducts({ page: 0, size: 5 }),
           getVendorContractRequests({ page: 0, size: 5 }),
           getVendorContracts({ page: 0, size: 5 }),
+          getVendorRecommendedAgencies(5),
         ]);
 
         if (active) {
-          setDashboard({ products, contractRequests, contracts });
+          setDashboard({
+            products,
+            contractRequests,
+            contracts,
+            recommendedAgencies: recommendedAgencies.items,
+          });
         }
       } catch (error) {
         if (active) {
@@ -112,6 +122,11 @@ export function VendorDashboard() {
           </Link>
         ))}
       </div>
+
+      <RecommendedAgenciesSection
+        isLoading={isLoading}
+        items={dashboard.recommendedAgencies}
+      />
 
       <div className="grid gap-5 xl:grid-cols-2">
         <DashboardList
@@ -183,6 +198,85 @@ function DashboardList({
   );
 }
 
+function RecommendedAgenciesSection({
+  isLoading,
+  items,
+}: {
+  isLoading: boolean;
+  items: VendorRecommendedAgencyItem[];
+}) {
+  return (
+    <article className="grid gap-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-base font-bold text-slate-950">추천 대리점</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            계약 이력과 지역 매칭 기준으로 계약 요청을 보내기 좋은 대리점을 보여줍니다.
+          </p>
+        </div>
+        <Link
+          className="inline-flex h-10 items-center justify-center rounded-md border border-[#071f46] px-4 text-sm font-bold text-[#071f46] transition hover:bg-[#071f46]/5"
+          href="/vendor/contract-requests/new"
+        >
+          계약 요청 등록
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div className="h-32 rounded-md bg-slate-100" key={index} />
+          ))}
+        </div>
+      ) : items.length > 0 ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {items.map((item) => (
+            <RecommendedAgencyCard item={item} key={item.agencyId} />
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-md bg-slate-50 px-3 py-4 text-sm font-semibold text-slate-500">
+          추천할 대리점이 없습니다.
+        </p>
+      )}
+    </article>
+  );
+}
+
+function RecommendedAgencyCard({ item }: { item: VendorRecommendedAgencyItem }) {
+  return (
+    <article className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-base font-bold text-slate-950">{item.agencyName}</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            {item.carrier} / {item.mainRegion}
+          </p>
+        </div>
+        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+          추천 점수 {formatNumber(item.score)}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {item.reasons.map((reason) => (
+          <span
+            className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-600"
+            key={`${item.agencyId}-${reason.type}`}
+          >
+            {reason.label}
+          </span>
+        ))}
+      </div>
+
+      <div className="grid gap-2 text-xs font-semibold text-slate-500">
+        <p>{formatAddress(item.address, item.addressDetail)}</p>
+        <p>담당 가능 지역 {formatNumber(item.serviceRegions.length)}개</p>
+      </div>
+    </article>
+  );
+}
+
 function readField(item: Record<string, unknown>, keys: string[]): unknown {
   for (const key of keys) {
     if (item[key] !== undefined && item[key] !== null) {
@@ -217,6 +311,10 @@ function formatStatus(value: unknown): string {
   }
 
   return labels[String(value)] ?? `상태 ${String(value)}`;
+}
+
+function formatAddress(address: string, detail: string | null): string {
+  return detail ? `${address} ${detail}` : address;
 }
 
 function getItemKey(item: Record<string, unknown>, index: number): string {
