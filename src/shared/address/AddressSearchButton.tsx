@@ -34,13 +34,14 @@ export type SelectedAddress = {
 };
 
 type AddressSearchButtonProps = {
+  compact?: boolean;
   onSelect: (address: SelectedAddress) => void;
 };
 
 const postcodeScriptSrc = "https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
 let scriptLoadingPromise: Promise<void> | null = null;
 
-export function AddressSearchButton({ onSelect }: AddressSearchButtonProps) {
+export function AddressSearchButton({ compact = false, onSelect }: AddressSearchButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -76,17 +77,41 @@ export function AddressSearchButton({ onSelect }: AddressSearchButtonProps) {
   return (
     <div className="grid gap-2">
       <button
-        className="h-11 rounded-md border border-[#071f46] px-4 text-sm font-bold text-[#071f46] transition hover:bg-[#071f46]/5 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+        aria-label={compact ? "주소 검색" : undefined}
+        className={
+          compact
+            ? "grid h-12 w-12 place-items-center rounded-md border border-[#071f46] text-[#071f46] transition hover:bg-[#071f46]/5 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+            : "h-11 rounded-md border border-[#071f46] px-4 text-sm font-bold text-[#071f46] transition hover:bg-[#071f46]/5 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+        }
         disabled={isLoading}
         onClick={handleClick}
         type="button"
+        title="주소 검색"
       >
-        {isLoading ? "검색 준비 중" : "주소 검색"}
+        {compact ? <SearchIcon /> : isLoading ? "검색 준비 중" : "주소 검색"}
       </button>
       {errorMessage ? (
         <p className="text-xs font-semibold text-red-600">{errorMessage}</p>
       ) : null}
     </div>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
   );
 }
 

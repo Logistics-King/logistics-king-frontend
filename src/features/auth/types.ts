@@ -1,7 +1,10 @@
-import type { UserRole } from "@/src/shared/api/types";
+import type { DeliverEmploymentType } from "@/src/features/driver/api";
+import type { Carrier, ColdChainType, UserRole } from "@/src/shared/api/types";
 
 export type AuthUser = {
   userId: string;
+  loginId?: string;
+  email?: string;
   role: UserRole;
 };
 
@@ -11,6 +14,30 @@ export type SignUpRequest = {
   password: string;
   passwordConfirm: string;
   name: string;
+  businessName?: string;
+  businessRegistrationNumber?: string | null;
+  representativeName?: string;
+  phoneNumber?: string;
+  postalCode?: string | null;
+  address?: string;
+  addressDetail?: string | null;
+  mainRegion?: string;
+  carrier?: Carrier;
+  agencyName?: string;
+  weekdayPickupStartTime?: string | null;
+  weekdayPickupEndTime?: string | null;
+  saturdayPickupAvailable?: boolean;
+  saturdayDeliveryAvailable?: boolean;
+  returnAvailable?: boolean;
+  supportedColdChainTypes?: ColdChainType[];
+  maxMonthlyVolume?: number | null;
+  employmentType?: DeliverEmploymentType;
+  agencyId?: string | null;
+  driverName?: string;
+  vehicleNumber?: string | null;
+  serviceRegions?: string[];
+  active?: boolean;
+  memo?: string | null;
 };
 
 export type SignInRequest = {
