@@ -148,7 +148,11 @@ export function DriverProfileForm() {
   }
 
   async function handleAgencySelect(agency: DeliverAgencySummary) {
-    setForm({ ...form, agencyId: agency.agencyId });
+    setForm({
+      ...form,
+      agencyId: agency.agencyId,
+      serviceRegions: agency.serviceRegions.join("\n"),
+    });
     setSelectedAgency(agency);
     setAgencySearchKeyword(agency.agencyName);
     setAgencyCandidates([]);
@@ -157,6 +161,11 @@ export function DriverProfileForm() {
       const detail = await getAgencyDetail(agency.agencyId);
 
       setSelectedAgency(detail);
+      setForm((current) =>
+        current.agencyId === agency.agencyId
+          ? { ...current, serviceRegions: detail.serviceRegions.join("\n") }
+          : current,
+      );
     } catch {
       // 상세 조회 실패 시에도 목록 요약 정보로 선택은 유지합니다.
     }
@@ -203,10 +212,18 @@ export function DriverProfileForm() {
                       }`}
                       key={option.value}
                       onClick={() => {
+                        const nextServiceRegions =
+                          option.value === "AGENCY_AFFILIATED" &&
+                          selectedAgency &&
+                          !form.serviceRegions.trim()
+                            ? selectedAgency.serviceRegions.join("\n")
+                            : form.serviceRegions;
+
                         setForm({
                           ...form,
                           employmentType: option.value,
                           agencyId: option.value === "FREELANCER" ? null : form.agencyId,
+                          serviceRegions: nextServiceRegions,
                         });
                         if (option.value === "FREELANCER") {
                           setSelectedAgency(null);
@@ -300,15 +317,15 @@ export function DriverProfileForm() {
             />
           </div>
 
-          <label className="mt-5 grid gap-2">
-            <span className="text-sm font-semibold text-slate-700">담당 가능 지역</span>
-            <textarea
-              className={`${inputClassName} min-h-28 resize-y py-3`}
-              placeholder={"경기도 안산시 일동\n경기도 안산시 본오동"}
-              value={form.serviceRegions}
-              onChange={(event) => setForm({ ...form, serviceRegions: event.target.value })}
-            />
-          </label>
+          <RegionSelector
+            baseRegions={
+              form.employmentType === "AGENCY_AFFILIATED" && selectedAgency
+                ? selectedAgency.serviceRegions
+                : []
+            }
+            selectedRegions={parseServiceRegions(form.serviceRegions)}
+            onChange={(regions) => setForm({ ...form, serviceRegions: regions.join("\n") })}
+          />
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <BooleanField
@@ -397,6 +414,155 @@ function BooleanField({
   );
 }
 
+function RegionSelector({
+  baseRegions,
+  selectedRegions,
+  onChange,
+}: {
+  baseRegions: string[];
+  selectedRegions: string[];
+  onChange: (regions: string[]) => void;
+}) {
+  const [regionInput, setRegionInput] = useState("");
+  const selectedSet = new Set(selectedRegions);
+  const allBaseSelected =
+    baseRegions.length > 0 && baseRegions.every((region) => selectedSet.has(region));
+  const customRegions = selectedRegions.filter((region) => !baseRegions.includes(region));
+
+  function handleToggle(region: string, checked: boolean) {
+    if (checked) {
+      onChange(uniqueRegions([...selectedRegions, region]));
+      return;
+    }
+
+    onChange(selectedRegions.filter((selectedRegion) => selectedRegion !== region));
+  }
+
+  function handleAddRegion(region: string) {
+    if (!region.trim()) {
+      return;
+    }
+
+    onChange(uniqueRegions([...selectedRegions, region.trim()]));
+  }
+
+  return (
+    <section className="mt-5 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-base font-bold text-slate-950">담당 가능 지역</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            대리점 담당 지역을 우선 선택하고, 필요한 지역구를 직접 추가할 수 있습니다.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {baseRegions.length > 0 ? (
+            <button
+              className="h-10 rounded-md border border-[#071f46] px-4 text-sm font-bold text-[#071f46] transition hover:bg-[#071f46]/5"
+              onClick={() =>
+                onChange(
+                  allBaseSelected
+                    ? selectedRegions.filter((region) => !baseRegions.includes(region))
+                    : uniqueRegions([...selectedRegions, ...baseRegions]),
+                )
+              }
+              type="button"
+            >
+              {allBaseSelected ? "기본 지역 해제" : "기본 지역 선택"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="grid gap-2 rounded-md border border-slate-200 bg-white p-3">
+        <label className="grid gap-2">
+          <span className="text-xs font-bold text-slate-500">지역구 직접 추가</span>
+          <div className="grid gap-2 sm:grid-cols-[1fr_96px]">
+            <input
+              className={inputClassName}
+              placeholder="예: 경기 안산시 상록구"
+              value={regionInput}
+              onChange={(event) => setRegionInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleAddRegion(regionInput);
+                  setRegionInput("");
+                }
+              }}
+            />
+            <button
+              className="h-11 rounded-md bg-[#071f46] px-4 text-sm font-bold text-white transition hover:bg-[#0a2d63]"
+              onClick={() => {
+                handleAddRegion(regionInput);
+                setRegionInput("");
+              }}
+              type="button"
+            >
+              추가
+            </button>
+          </div>
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {regionExamples.map((region) => (
+            <button
+              className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:border-[#071f46] hover:text-[#071f46]"
+              key={region}
+              onClick={() => handleAddRegion(region)}
+              type="button"
+            >
+              {region}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {baseRegions.length > 0 ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {baseRegions.map((region) => (
+            <label
+              className="flex min-h-12 items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+              key={region}
+            >
+              <span className="break-keep leading-5">{region}</span>
+              <input
+                checked={selectedSet.has(region)}
+                className="h-5 w-5 shrink-0 accent-[#071f46]"
+                onChange={(event) => handleToggle(region, event.target.checked)}
+                type="checkbox"
+              />
+            </label>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-md bg-white px-3 py-3 text-sm font-semibold text-slate-500">
+          담당 가능 지역을 직접 추가해 주세요.
+        </p>
+      )}
+
+      {customRegions.length > 0 ? (
+        <div className="grid gap-2">
+          <p className="text-xs font-bold text-slate-500">추가 지역</p>
+          <div className="flex flex-wrap gap-2">
+            {customRegions.map((region) => (
+              <button
+                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                key={region}
+                onClick={() =>
+                  onChange(selectedRegions.filter((selectedRegion) => selectedRegion !== region))
+                }
+                type="button"
+              >
+                {region} 삭제
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function AgencySummaryCard({
   agency,
   selected = false,
@@ -481,10 +647,11 @@ function toFormState(profile: DeliverProfile): DriverProfileFormState {
 }
 
 function parseServiceRegions(value: string): string[] {
-  return value
-    .split("\n")
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return uniqueRegions(value.split("\n"));
+}
+
+function uniqueRegions(regions: string[]): string[] {
+  return Array.from(new Set(regions.map((region) => region.trim()).filter(Boolean)));
 }
 
 function blankToNull(value: string): string | null {
@@ -543,4 +710,13 @@ const employmentTypeOptions: Array<{
     label: "프리랜서",
     description: "특정 대리점 소속 없이 외부 기사 후보로 노출됩니다.",
   },
+];
+
+const regionExamples = [
+  "경기 안산시 상록구",
+  "경기 안산시 단원구",
+  "경기 성남시 분당구",
+  "서울 강남구",
+  "서울 송파구",
+  "인천 남동구",
 ];

@@ -127,6 +127,13 @@ export const menuItems: MenuItem[] = [
     group: "대리점",
   },
   {
+    label: "기사 일감",
+    href: "/agency/driver-works",
+    icon: TruckIcon,
+    roles: agencyRoles,
+    group: "대리점",
+  },
+  {
     label: "기사 홈",
     href: "/driver",
     icon: TruckIcon,
@@ -144,6 +151,13 @@ export const menuItems: MenuItem[] = [
     label: "내 기사 계약",
     href: "/driver/deliver-contracts",
     icon: ContractIcon,
+    roles: driverRoles,
+    group: "배송기사",
+  },
+  {
+    label: "기사 일감",
+    href: "/driver/works",
+    icon: SearchIcon,
     roles: driverRoles,
     group: "배송기사",
   },
