@@ -1,0 +1,17 @@
+.git
+.github
+.codex
+.agents
+.idea
+.next
+node_modules
+coverage
+out
+build
+.env*
+*.pem
+*.key
+*.log
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
