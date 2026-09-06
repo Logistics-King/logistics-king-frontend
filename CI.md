@@ -2,10 +2,8 @@
 
 ## 실행 조건
 
-- 모든 브랜치 push에서 검증과 Docker 빌드를 실행한다. 기능 브랜치는 GHCR 로그인/업로드를 하지 않는다.
-- PR이 열린 브랜치에 push하면 push 검사와 PR 검사가 각각 실행될 수 있다.
-
-- PR: npm ci → lint → Next.js route type 생성 → TypeScript 검사 → production build → Docker build. 이미지는 업로드하지 않는다.
+- develop/main push(머지 또는 직접 push)에만 CI를 실행한다. 기능 브랜치 push와 PR 생성/업데이트에서는 실행하지 않는다.
+- 실행 순서: npm ci → lint → Next.js route type 생성 → TypeScript 검사 → production build → Docker build.
 - develop/main push: 같은 검증을 통과한 뒤 GHCR에 `ghcr.io/<소문자 owner>/<소문자 repository>:sha-<전체 commit SHA>`를 업로드한다.
 - 테스트 프레임워크가 아직 없어 자동 단위 테스트와 브라우저 검증은 이 CI에 포함되지 않는다. lint/type/build 성공은 실제 API 연동 성공을 의미하지 않는다.
 - SSH 접속, 서버 재시작, DB 변경, 자동 배포는 수행하지 않는다.
@@ -18,7 +16,8 @@
 - Repository variable `NEXT_PUBLIC_API_BASE_URL`은 선택 사항이다. 미설정/빈 문자열이면 브라우저의 현재 도메인으로 `/api/v1/...`를 호출한다. Nginx가 `/api/`를 백엔드로 전달해야 한다.
 - 별도 API 도메인을 쓰면 HTTPS origin을 넣는다. 예: `https://api.example.com` (끝 `/` 제외).
 - NEXT_PUBLIC 값은 공개되며 빌드 시 고정된다. 컨테이너 실행 시 환경변수를 바꿔도 브라우저 번들은 바뀌지 않는다. 변경 시 이미지를 다시 빌드한다. 비밀값을 넣지 않는다.
-- PR branch protection의 필수 검사로 `verify`, `image`를 지정하는 것을 권장한다.
+- PR 검사를 실행하지 않으므로 이 workflow의 `verify`, `image`를 PR 병합 필수 검사로 설정하지 않는다. 기존 필수 검사 설정이 있다면 조정해야 병합 대기가 발생하지 않는다.
+- 머지를 통해서만 반영하려면 develop/main 직접 push를 브랜치 보호 규칙으로 제한한다. CI 오류는 머지 후 발견될 수 있다.
 
 ## 수동 배포 준비
 
